@@ -1,0 +1,9 @@
+.claude/
+.docx_html_test/
+.docx_quicklook_test/
+.impeccable/
+Screenshots/
+outputs/
+*.docx
+*.pdf
+~$*.docx

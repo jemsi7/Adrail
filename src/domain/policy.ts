@@ -136,7 +136,10 @@ export function extractPolicyContextSignals(sourceText: string): string[] {
   const signals = [
     ["travel", /\b(travel|trip|itinerary|hotel|local experience|weekend)\b/],
     ["productivity", /\b(productivity|saas|workflow|team|automation|time saved)\b/],
-    ["learning", /\b(course|learning|upskill|professional|certification|training)\b/]
+    ["learning", /\b(course|learning|upskill|professional|certification|training)\b/],
+    ["finance_ops", /\b(finance|invoice|invoices|reconciliation|month-end close|accounts payable|expense review|cash flow)\b/],
+    ["home_energy", /\b(home energy|electricity|utility|solar|thermostat|insulation|energy savings)\b/],
+    ["creator_tools", /\b(creator|newsletter|content calendar|publishing|sponsor|media kit|audience growth)\b/]
   ] as const;
 
   return signals
@@ -149,7 +152,10 @@ export function generateEmbeddingQueries(sourceText: string): string[] {
   const signalQueries: Record<string, string> = {
     travel: "weekend travel itinerary local experiences food nature culture budget",
     productivity: "productivity SaaS workflow automation team time saved collaboration",
-    learning: "online learning professional upskilling course certification training"
+    learning: "online learning professional upskilling course certification training",
+    finance_ops: "finance operations invoice reconciliation month-end close accounts payable expense cash flow",
+    home_energy: "home energy electricity utility bill solar thermostat insulation efficiency savings",
+    creator_tools: "creator tools newsletter content calendar sponsor media kit publishing audience"
   };
 
   return uniqueStrings([

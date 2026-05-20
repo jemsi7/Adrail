@@ -1,4 +1,4 @@
-# Agentic Ad Firewall
+# Adrail
 
 AI advertising transparency and settlement infrastructure for agentic services.
 
@@ -13,12 +13,15 @@ escrow contract.
 - `/user-chat`: user-facing chat with the pre-answer sponsored interstitial.
 - `/advertiser-console`: advertiser policy editor, preset builder, platform review, and settlement dashboard.
 
-The three bundled campaigns are seed presets, not a fixed taxonomy. Add another
+The six bundled campaigns are seed presets, not a fixed taxonomy. Add another
 demo preset in the Advertiser Console and it will also appear in User Chat.
 
-OpenRouter is live-ready. Add `OPENROUTER_API_KEY` to `.env` or enter a key in
-the demo screen session field to use structured-output LLM calls; without a key,
-the deterministic fixture path stays available.
+OpenRouter is live-ready. Add `OPENROUTER_API_KEY` to `.env` to use
+structured-output LLM calls. When the key is configured, User Chat opens on a
+clean new-chat thread, hides the preset selector, and uses the live LLM path
+only; provider failures are surfaced instead of falling back to fixture content.
+Without that value, the deterministic fixture path stays available. The demo
+screen never accepts or stores the OpenRouter key in the browser.
 
 ## Phase 1 Scope
 
@@ -36,3 +39,9 @@ npm run dev
 npm test
 npm run typecheck
 ```
+
+`npm run dev` binds the Next dev server to `0.0.0.0` for LAN/mobile demos.
+The dev config auto-allows the machine's current LAN IPv4 address for Next's
+internal dev resources. For a custom demo host or tunnel, set
+`NEXT_ALLOWED_DEV_ORIGINS=demo.local,*.ngrok-free.app` before starting the
+server.

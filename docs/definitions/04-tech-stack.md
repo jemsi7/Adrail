@@ -45,7 +45,8 @@
 
 - OpenRouter adapter를 기본 provider로 둔다.
 - OpenRouter Chat Completions는 structured output JSON schema를 우선 사용한다.
-- API key는 `.env`의 `OPENROUTER_API_KEY` 또는 demo browser session의 `x-openrouter-api-key` header로 주입할 수 있다.
+- User Chat service answer는 `/api/live-answer`에서 OpenRouter streaming Chat Completions를 SSE로 중계하며, structured `answer` JSON field에서 텍스트 delta만 추출해 UI에 표시한다.
+- API key는 `.env`의 `OPENROUTER_API_KEY`로만 주입한다. browser session, local/session storage, client-provided header는 key source로 사용하지 않는다.
 - 네트워크나 key가 없어도 demo fixture로 동작 가능한 fallback을 유지한다.
 - fixture는 answer, ad generation, target policy compilation, context retention scoring을 모두 지원한다.
 - live output은 `src/ai/openrouter.ts` adapter와 `src/ai/live-llm.ts` schema/guard wrapper를 통과한다.

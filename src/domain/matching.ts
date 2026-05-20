@@ -9,6 +9,7 @@ import {
   compiledTargetPolicySchema,
   hashStableJson
 } from "./schemas";
+import type { PreparedSponsoredCreativeSet } from "./prepared-creatives";
 
 export type IntentContext = {
   userQuestion: string;
@@ -31,6 +32,7 @@ export type CampaignAdCandidate = {
   adPoolItem: AdPoolItem;
   advertiserName: string;
   settlementPolicy?: DynamicSettlementPolicy;
+  preparedCreativeSet?: PreparedSponsoredCreativeSet;
 };
 
 export type TargetPolicyMatch = {
@@ -62,6 +64,7 @@ export type AdOpportunity = {
   adPoolItem: AdPoolItem;
   advertiserName: string;
   settlementPolicy?: DynamicSettlementPolicy;
+  preparedCreativeSet?: PreparedSponsoredCreativeSet;
   relevanceScore: number;
   matchedSignals: string[];
   matchedKeywords: string[];
@@ -78,10 +81,38 @@ export type AdDecision = {
   rejectedCandidates: RejectedAdCandidate[];
 };
 
+export type AdOpportunitySelectionInput = {
+  intentContext: IntentContext;
+  retrievalSafeSummary: string;
+  eligibilityToken: EligibilityToken;
+  candidates: CampaignAdCandidate[];
+  frequencyState?: FrequencyState;
+  now: string;
+};
+
+export type EmbeddingQueryMatch = {
+  score: number;
+  matchedQuery: string;
+};
+
+export type EmbeddingAdOpportunitySelectionInput = AdOpportunitySelectionInput & {
+  embeddingMatchesByCampaignId: Record<string, EmbeddingQueryMatch | undefined>;
+  minimumEmbeddingScore?: number;
+};
+
+export type LlmCampaignChoiceSelectionInput = AdOpportunitySelectionInput & {
+  selectedCampaignId: string;
+  rationale: string;
+  fitScore?: number;
+};
+
 const SIGNAL_ALIASES: Record<string, string[]> = {
   travel: ["travel", "trip", "itinerary", "hotel", "weekend", "local", "experience", "budget"],
   productivity: ["productivity", "saas", "workflow", "automation", "team", "time", "collaboration"],
-  learning: ["learning", "course", "upskill", "professional", "certification", "training"]
+  learning: ["learning", "course", "upskill", "professional", "certification", "training"],
+  finance_ops: ["finance", "invoice", "invoices", "reconciliation", "close", "payable", "expense", "cash"],
+  home_energy: ["home", "energy", "electricity", "utility", "solar", "thermostat", "insulation", "bill"],
+  creator_tools: ["creator", "newsletter", "content", "publishing", "sponsor", "media", "audience", "calendar"]
 };
 
 export function matchesTargetPolicy(input: {
@@ -147,76 +178,38 @@ export function matchesTargetPolicy(input: {
   };
 }
 
-export function selectAdOpportunity(input: {
-  intentContext: IntentContext;
-  retrievalSafeSummary: string;
-  eligibilityToken: EligibilityToken;
-  candidates: CampaignAdCandidate[];
-  frequencyState?: FrequencyState;
-  now: string;
-}): AdDecision {
+export function selectAdOpportunity(input: AdOpportunitySelectionInput): AdDecision {
   const rejectedCandidates: RejectedAdCandidate[] = [];
   const ranked: AdOpportunity[] = [];
 
   for (const rawCandidate of input.candidates) {
-    const campaign = campaignSchema.parse(rawCandidate.campaign);
-    const adPoolItem = adPoolItemSchema.parse(rawCandidate.adPoolItem);
-    const compiledPolicy = compiledTargetPolicySchema.parse(rawCandidate.compiledPolicy);
+    const candidate = parseCandidate(rawCandidate);
+    const rejectionReason = getPreMatchRejection({
+      candidate,
+      eligibilityToken: input.eligibilityToken,
+      frequencyState: input.frequencyState,
+      now: input.now
+    });
 
-    if (campaign.status !== "approved" || campaign.reviewStatus !== "approved") {
-      rejectedCandidates.push({ campaignId: campaign.id, reason: "campaign_not_approved" });
-      continue;
-    }
-
-    if (adPoolItem.reviewStatus !== "approved") {
-      rejectedCandidates.push({ campaignId: campaign.id, reason: "ad_pool_not_approved" });
-      continue;
-    }
-
-    if (compiledPolicy.safetyVerdict !== "approved") {
-      rejectedCandidates.push({ campaignId: campaign.id, reason: "policy_not_approved" });
-      continue;
-    }
-
-    if (isOptedOut(input.eligibilityToken.categoryOptOuts, compiledPolicy, adPoolItem)) {
-      rejectedCandidates.push({ campaignId: campaign.id, reason: "category_opt_out" });
-      continue;
-    }
-
-    if (!withinFrequencyCap(campaign.id, input.frequencyState, input.now)) {
-      rejectedCandidates.push({ campaignId: campaign.id, reason: "frequency_capped" });
-      continue;
-    }
-
-    if (campaign.remainingBudgetCents <= 0) {
-      rejectedCandidates.push({ campaignId: campaign.id, reason: "no_remaining_budget" });
-      continue;
-    }
-
-    if (adPoolItem.allowedInteractionTemplates.length === 0) {
-      rejectedCandidates.push({ campaignId: campaign.id, reason: "no_interaction_template" });
+    if (rejectionReason) {
+      rejectedCandidates.push({ campaignId: candidate.campaign.id, reason: rejectionReason });
       continue;
     }
 
     const match = matchesTargetPolicy({
-      policy: compiledPolicy,
+      policy: candidate.compiledPolicy,
       eligibilityToken: input.eligibilityToken,
       retrievalSafeSummary: input.retrievalSafeSummary,
       intentContext: input.intentContext
     });
 
     if (!match.matches) {
-      rejectedCandidates.push({ campaignId: campaign.id, reason: "policy_mismatch" });
+      rejectedCandidates.push({ campaignId: candidate.campaign.id, reason: "policy_mismatch" });
       continue;
     }
 
     ranked.push(buildOpportunity({
-      candidate: {
-        ...rawCandidate,
-        campaign,
-        adPoolItem,
-        compiledPolicy
-      },
+      candidate,
       intentContext: input.intentContext,
       match
     }));
@@ -243,6 +236,147 @@ export function selectAdOpportunity(input: {
     reason: "eligible_campaign_selected",
     opportunity: ranked[0],
     rejectedCandidates
+  };
+}
+
+export function selectAdOpportunityByEmbedding(
+  input: EmbeddingAdOpportunitySelectionInput
+): AdDecision {
+  const rejectedCandidates: RejectedAdCandidate[] = [];
+  const ranked: AdOpportunity[] = [];
+  const minimumEmbeddingScore = input.minimumEmbeddingScore ?? 0;
+
+  for (const rawCandidate of input.candidates) {
+    const candidate = parseCandidate(rawCandidate);
+    const rejectionReason = getPreMatchRejection({
+      candidate,
+      eligibilityToken: input.eligibilityToken,
+      frequencyState: input.frequencyState,
+      now: input.now
+    });
+
+    if (rejectionReason) {
+      rejectedCandidates.push({ campaignId: candidate.campaign.id, reason: rejectionReason });
+      continue;
+    }
+
+    const embeddingMatch = input.embeddingMatchesByCampaignId[candidate.campaign.id];
+
+    if (!embeddingMatch || embeddingMatch.score < minimumEmbeddingScore) {
+      rejectedCandidates.push({ campaignId: candidate.campaign.id, reason: "policy_mismatch" });
+      continue;
+    }
+
+    const overlapDiagnostics = matchesTargetPolicy({
+      policy: candidate.compiledPolicy,
+      eligibilityToken: input.eligibilityToken,
+      retrievalSafeSummary: input.retrievalSafeSummary,
+      intentContext: input.intentContext
+    });
+    const match: TargetPolicyMatch = {
+      matches: true,
+      score: clamp01(embeddingMatch.score),
+      matchedSignals: overlapDiagnostics.matchedSignals,
+      matchedKeywords: overlapDiagnostics.matchedKeywords,
+      matchedEmbeddingQueries: [embeddingMatch.matchedQuery],
+      reasons: [`embedding cosine similarity ${embeddingMatch.score.toFixed(4)}`]
+    };
+
+    ranked.push(buildOpportunity({
+      candidate,
+      intentContext: input.intentContext,
+      match
+    }));
+  }
+
+  ranked.sort((left, right) => {
+    if (right.relevanceScore !== left.relevanceScore) {
+      return right.relevanceScore - left.relevanceScore;
+    }
+
+    return right.campaign.remainingBudgetCents - left.campaign.remainingBudgetCents;
+  });
+
+  if (ranked.length === 0) {
+    return {
+      shouldRender: false,
+      reason: "no_eligible_campaign",
+      rejectedCandidates
+    };
+  }
+
+  return {
+    shouldRender: true,
+    reason: "eligible_campaign_selected",
+    opportunity: ranked[0],
+    rejectedCandidates
+  };
+}
+
+export function selectAdOpportunityByLlmChoice(
+  input: LlmCampaignChoiceSelectionInput
+): AdDecision {
+  const rejectedCandidates: RejectedAdCandidate[] = [];
+  const selectedCandidate = input.candidates.find((candidate) =>
+    candidate.campaign.id === input.selectedCampaignId
+  );
+
+  if (!selectedCandidate) {
+    return {
+      shouldRender: false,
+      reason: "no_eligible_campaign",
+      rejectedCandidates: []
+    };
+  }
+
+  for (const rawCandidate of input.candidates) {
+    const candidate = parseCandidate(rawCandidate);
+    const rejectionReason = getPreMatchRejection({
+      candidate,
+      eligibilityToken: input.eligibilityToken,
+      frequencyState: input.frequencyState,
+      now: input.now
+    });
+
+    if (rejectionReason) {
+      rejectedCandidates.push({ campaignId: candidate.campaign.id, reason: rejectionReason });
+      continue;
+    }
+
+    if (candidate.campaign.id !== input.selectedCampaignId) {
+      continue;
+    }
+
+    const compiledSignals = readStringArray(candidate.compiledPolicy.ast.requiredContextSignals);
+    const compiledKeywords = readStringArray(candidate.compiledPolicy.ast.intentKeywords);
+    const match: TargetPolicyMatch = {
+      matches: true,
+      score: clamp01(input.fitScore ?? 1),
+      matchedSignals: compiledSignals,
+      matchedKeywords: compiledKeywords.slice(0, 4),
+      matchedEmbeddingQueries: [],
+      reasons: [`professional matching selected by LLM: ${input.rationale}`]
+    };
+
+    return {
+      shouldRender: true,
+      reason: "eligible_campaign_selected",
+      opportunity: buildOpportunity({
+        candidate,
+        intentContext: input.intentContext,
+        match
+      }),
+      rejectedCandidates
+    };
+  }
+
+  return {
+    shouldRender: false,
+    reason: "no_eligible_campaign",
+    rejectedCandidates: [
+      ...rejectedCandidates,
+      { campaignId: input.selectedCampaignId, reason: "policy_mismatch" }
+    ]
   };
 }
 
@@ -277,6 +411,78 @@ export function withinFrequencyCap(
   return recentCount < maxImpressions;
 }
 
+export function cosineSimilarity(left: number[], right: number[]): number {
+  if (left.length === 0 || left.length !== right.length) {
+    return 0;
+  }
+
+  let dot = 0;
+  let leftNorm = 0;
+  let rightNorm = 0;
+
+  for (let index = 0; index < left.length; index += 1) {
+    const leftValue = left[index];
+    const rightValue = right[index];
+    dot += leftValue * rightValue;
+    leftNorm += leftValue * leftValue;
+    rightNorm += rightValue * rightValue;
+  }
+
+  if (leftNorm === 0 || rightNorm === 0) {
+    return 0;
+  }
+
+  return Math.max(-1, Math.min(1, dot / (Math.sqrt(leftNorm) * Math.sqrt(rightNorm))));
+}
+
+function parseCandidate(rawCandidate: CampaignAdCandidate): CampaignAdCandidate {
+  return {
+    ...rawCandidate,
+    campaign: campaignSchema.parse(rawCandidate.campaign),
+    adPoolItem: adPoolItemSchema.parse(rawCandidate.adPoolItem),
+    compiledPolicy: compiledTargetPolicySchema.parse(rawCandidate.compiledPolicy)
+  };
+}
+
+function getPreMatchRejection(input: {
+  candidate: CampaignAdCandidate;
+  eligibilityToken: EligibilityToken;
+  frequencyState?: FrequencyState;
+  now: string;
+}): RejectedAdCandidate["reason"] | null {
+  const { campaign, adPoolItem, compiledPolicy } = input.candidate;
+
+  if (campaign.status !== "approved" || campaign.reviewStatus !== "approved") {
+    return "campaign_not_approved";
+  }
+
+  if (adPoolItem.reviewStatus !== "approved") {
+    return "ad_pool_not_approved";
+  }
+
+  if (compiledPolicy.safetyVerdict !== "approved") {
+    return "policy_not_approved";
+  }
+
+  if (isOptedOut(input.eligibilityToken.categoryOptOuts, compiledPolicy, adPoolItem)) {
+    return "category_opt_out";
+  }
+
+  if (!withinFrequencyCap(campaign.id, input.frequencyState, input.now)) {
+    return "frequency_capped";
+  }
+
+  if (campaign.remainingBudgetCents <= 0) {
+    return "no_remaining_budget";
+  }
+
+  if (adPoolItem.allowedInteractionTemplates.length === 0) {
+    return "no_interaction_template";
+  }
+
+  return null;
+}
+
 function buildOpportunity(input: {
   candidate: CampaignAdCandidate;
   intentContext: IntentContext;
@@ -298,6 +504,7 @@ function buildOpportunity(input: {
     adPoolItem: input.candidate.adPoolItem,
     advertiserName: input.candidate.advertiserName,
     settlementPolicy: input.candidate.settlementPolicy,
+    preparedCreativeSet: input.candidate.preparedCreativeSet,
     relevanceScore: Math.round(input.match.score * 10000),
     matchedSignals: input.match.matchedSignals,
     matchedKeywords: input.match.matchedKeywords,
@@ -400,6 +607,14 @@ function tokenOverlap(text: string, corpus: string): number {
 
 function normalizeCorpus(values: string[]): string {
   return values.join(" ").toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function clamp01(value: number): number {
+  if (Number.isNaN(value)) {
+    return 0;
+  }
+
+  return Math.min(1, Math.max(0, value));
 }
 
 function readStringArray(value: unknown): string[] {

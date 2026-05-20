@@ -85,6 +85,8 @@ export type ParsedSettlementContractEvent = {
   proofHash: string;
   scoreBps: number;
   thresholdBps: number;
+  recipient?: string;
+  payoutAmountWei?: string;
 };
 
 export type ParsedCampaignDepositContractEvent = {
@@ -443,7 +445,9 @@ export function parseSettlementContractEvent(
     attentionEventId: readRequiredString(log.args.attentionEventId, "attentionEventId"),
     proofHash: normalizeHash(readRequiredString(log.args.proofHash, "proofHash")),
     scoreBps: readRequiredNumber(log.args.scoreBps, "scoreBps"),
-    thresholdBps: readRequiredNumber(log.args.thresholdBps, "thresholdBps")
+    thresholdBps: readRequiredNumber(log.args.thresholdBps, "thresholdBps"),
+    recipient: readOptionalString(log.args.recipient),
+    payoutAmountWei: readOptionalNumberishAsString(log.args.payoutAmount)
   };
 }
 
@@ -549,6 +553,10 @@ function readRequiredString(value: unknown, key: string): string {
   return value;
 }
 
+function readOptionalString(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
 function readRequiredNumber(value: unknown, key: string): number {
   if (typeof value !== "number" || !Number.isFinite(value)) {
     throw new Error(`Missing contract event argument: ${key}`);
@@ -571,6 +579,22 @@ function readRequiredNumberishAsString(value: unknown, key: string): string {
   }
 
   throw new Error(`Missing contract event argument: ${key}`);
+}
+
+function readOptionalNumberishAsString(value: unknown): string | undefined {
+  if (typeof value === "bigint") {
+    return value.toString();
+  }
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.trunc(value).toString();
+  }
+
+  if (typeof value === "string" && value.length > 0) {
+    return value;
+  }
+
+  return undefined;
 }
 
 function normalizeHash(value: string): string {

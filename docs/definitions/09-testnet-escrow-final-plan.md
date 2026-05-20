@@ -2,7 +2,7 @@
 
 - 상태: v1.0 locked
 - 작성일: 2026-05-20
-- 프로젝트: AI Agentic 광고시스템
+- 프로젝트: Adrail
 - 결정: MVP 신뢰형 testnet smart contract escrow 완성
 
 ## 목적
@@ -276,7 +276,7 @@ contract와 app 사이의 불일치를 제거한다.
 
 - `docs/testnet-escrow-runbook.md`
 - `.env.example` 업데이트
-- `docs/specs/agentic-ad-firewall-attention-settlement.md` Known Limits 갱신
+- `docs/specs/adrail-attention-settlement.md` Known Limits 갱신
 - `docs/definitions/08-checklist.md` 체크리스트 완료 반영
 - L&C 기록
 - 필요 시 E&C 기록

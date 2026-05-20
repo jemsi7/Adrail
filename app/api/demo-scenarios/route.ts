@@ -1,28 +1,12 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { buildAllPhase4DemoScenarios } from "../../../src/domain/demo-ux";
-
-const interactionTemplateSchema = z.enum(["choice", "slider", "short_text"]);
-
-const demoPresetDraftSchema = z.object({
-  id: z.string().min(1),
-  navigationLabel: z.string().min(1),
-  advertiserName: z.string().min(1),
-  campaignName: z.string().min(1),
-  objective: z.string().min(1),
-  productServiceSummary: z.string().min(1),
-  naturalLanguageTargetPolicy: z.string().min(1),
-  mustIncludeAttributes: z.array(z.string().min(1)).min(1),
-  prohibitedClaims: z.array(z.string().min(1)),
-  creativeConstraints: z.array(z.string().min(1)).optional(),
-  allowedInteractionTemplates: z.array(interactionTemplateSchema).min(1),
-  ctaLabel: z.string().min(1),
-  ctaTarget: z.string().min(1),
-  userQuestion: z.string().min(1).optional(),
-  currentNeedSummary: z.string().min(1).optional(),
-  intentTags: z.array(z.string().min(1)).optional(),
-  followUpQuestion: z.string().min(1).optional()
-}).strict();
+import { buildAllPhase4DemoScenarios, type Phase4DemoScenario } from "../../../src/domain/demo-ux";
+import {
+  demoPresetDraftSchema,
+  normalizeDemoPresetId,
+  sanitizeDemoPresetDrafts,
+  type DemoPresetDraft
+} from "../../../src/domain/demo-presets";
 
 const requestSchema = z.object({
   customPresets: z.array(demoPresetDraftSchema).default([])
@@ -38,7 +22,50 @@ export async function POST(request: Request) {
     );
   }
 
-  return NextResponse.json({
-    scenarios: buildAllPhase4DemoScenarios(undefined, parsed.data.customPresets)
+  try {
+    const customPresets = sanitizeDemoPresetDrafts(parsed.data.customPresets);
+    const scenarios = buildAllPhase4DemoScenarios(undefined, customPresets);
+
+    return NextResponse.json({
+      scenarios,
+      customPresets: attachPreparedCreativesToCustomPresets(customPresets, scenarios)
+    });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error: "Unable to build demo scenarios from the provided campaign presets.",
+        detail: getScenarioBuildErrorDetail(error)
+      },
+      { status: 422 }
+    );
+  }
+}
+
+function attachPreparedCreativesToCustomPresets(
+  customPresets: DemoPresetDraft[],
+  scenarios: Phase4DemoScenario[]
+): DemoPresetDraft[] {
+  return customPresets.map((preset) => {
+    const theme = normalizeDemoPresetId(preset.id);
+    const scenario = scenarios.find((candidate) => candidate.theme === theme);
+
+    if (!scenario?.fixture.preparedCreativeSet) {
+      return preset;
+    }
+
+    return {
+      ...preset,
+      preparedCreativeSet: scenario.fixture.preparedCreativeSet
+    };
   });
+}
+
+function getScenarioBuildErrorDetail(error: unknown): string {
+  const message = error instanceof Error ? error.message : "Scenario generation failed.";
+
+  if (message.includes("Expected eligible Phase 4 ad opportunity")) {
+    return "The campaign preset was accepted, but its target policy and demo user question did not produce an eligible sponsored scenario. Use a non-sensitive English target policy with terms that overlap the offer and question.";
+  }
+
+  return message;
 }

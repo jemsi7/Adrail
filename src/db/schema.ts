@@ -195,3 +195,45 @@ export const contractTransactions = sqliteTable("contract_transactions", {
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull()
 });
+
+export const advertiserWallets = sqliteTable("advertiser_wallets", {
+  id: text("id").primaryKey(),
+  advertiserId: text("advertiser_id").notNull().references(() => advertisers.id),
+  walletAddress: text("wallet_address").notNull(),
+  chainId: integer("chain_id").notNull(),
+  verificationStatus: text("verification_status").notNull(),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull()
+});
+
+export const campaignFundingAccounts = sqliteTable("campaign_funding_accounts", {
+  campaignId: text("campaign_id").primaryKey().references(() => campaigns.id),
+  advertiserId: text("advertiser_id").notNull().references(() => advertisers.id),
+  chainId: integer("chain_id").notNull(),
+  escrowContractAddress: text("escrow_contract_address").notNull(),
+  walletAddress: text("wallet_address"),
+  policyHash: text("policy_hash").notNull(),
+  depositedWei: text("deposited_wei").notNull(),
+  spentWei: text("spent_wei").notNull(),
+  availableWei: text("available_wei").notNull(),
+  pendingDebitWei: text("pending_debit_wei").notNull(),
+  lastIndexedBlock: integer("last_indexed_block"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull()
+});
+
+export const escrowLedgerEntries = sqliteTable("escrow_ledger_entries", {
+  id: text("id").primaryKey(),
+  campaignId: text("campaign_id").notNull().references(() => campaigns.id),
+  type: text("type").notNull(),
+  amountWei: text("amount_wei").notNull(),
+  status: text("status").notNull(),
+  txHash: text("tx_hash"),
+  blockNumber: integer("block_number"),
+  eventName: text("event_name"),
+  attentionEventId: text("attention_event_id").references(() => attentionEvents.id),
+  settlementEventId: text("settlement_event_id").references(() => settlementEvents.id),
+  proofHash: text("proof_hash").references(() => settlementProofs.proofHash),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull()
+});

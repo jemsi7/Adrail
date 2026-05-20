@@ -1,8 +1,8 @@
-# Agentic Ad Firewall Demo UX
+# Adrail Demo UX
 
 ## What This Asset Does
 
-This asset implements the Phase 4 demo UX layer for Agentic Ad Firewall. It
+This asset implements the Phase 4 demo UX layer for Adrail. It
 assembles the Phase 1-3 domain contracts into judge-ready screens with user
 chat, pre-answer sponsored interstitial, advertiser policy preview, platform
 review, privacy disclosure, custom preset creation, OpenRouter live refresh,
@@ -57,7 +57,7 @@ console.log(scenario.settlementDashboard.transactionHash);
 ## Known Limits
 
 - The local demo uses deterministic fixtures for model output and transaction
-  submission when no OpenRouter key is provided.
+  submission when no OpenRouter key is configured.
 - OpenRouter live output is accepted only after structured JSON parsing, schema
   validation, and sponsored policy guard checks.
 - The compile API updates policy previews but does not persist campaigns to a
@@ -68,8 +68,10 @@ console.log(scenario.settlementDashboard.transactionHash);
 
 - Keep the service answer separate from advertiser targeting data.
 - Keep policy compilation on the server because hashing uses Node crypto.
+- Keep the OpenRouter API key server-side in `.env`; do not add browser key
+  fields, session storage, or client header injection.
 - Do not expose raw transcript, user profile, direct user id, or eligibility
   token in advertiser-facing views.
-- Keep the three seed presets intact for the MVP judge path, but do not treat
+- Keep the six seed presets intact for the MVP judge path, but do not treat
   them as an exhaustive ad-type enum.
 - Route User Chat and Advertiser Console separately when porting the demo shell.

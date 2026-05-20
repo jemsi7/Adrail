@@ -11,6 +11,20 @@ export const safetyVerdictSchema = z.enum(["approved", "needs_review", "blocked"
 export const interactionTypeSchema = z.enum(["choice", "slider", "short_text"]);
 export const signalTypeSchema = z.enum(["dwell", "realtime_interaction", "context_retention", "deep_link"]);
 export const settlementStatusSchema = z.enum(["pending", "submitted", "settled", "rejected"]);
+export const advertiserWalletVerificationStatusSchema = z.enum([
+  "unconfigured",
+  "format_valid",
+  "configured_match",
+  "mismatch"
+]);
+export const escrowLedgerEntryTypeSchema = z.enum([
+  "deposit",
+  "attention_debit",
+  "failed_debit",
+  "refund"
+]);
+export const ledgerStatusSchema = z.enum(["pending", "confirmed", "failed"]);
+export const weiAmountSchema = z.string().regex(/^(0|[1-9]\d*)$/);
 
 export const landingDeepLinkActionSchema = z.object({
   label: z.string().min(1),
@@ -244,6 +258,54 @@ export const contractTransactionSchema = z.object({
   updatedAt: isoDateTimeSchema
 }).strict();
 
+export const advertiserWalletProfileSchema = z.object({
+  advertiserId: idSchema,
+  walletAddress: z.string().min(1).optional(),
+  chainId: z.number().int().positive(),
+  verificationStatus: advertiserWalletVerificationStatusSchema,
+  updatedAt: isoDateTimeSchema
+}).strict();
+
+export const campaignFundingAccountSchema = z.object({
+  campaignId: idSchema,
+  advertiserId: idSchema,
+  chainId: z.number().int().positive(),
+  escrowContractAddress: z.string().min(1),
+  walletAddress: z.string().min(1).optional(),
+  policyHash: z.string().min(16),
+  depositedWei: weiAmountSchema,
+  spentWei: weiAmountSchema,
+  availableWei: weiAmountSchema,
+  pendingDebitWei: weiAmountSchema,
+  lastIndexedBlock: z.number().int().positive().optional(),
+  updatedAt: isoDateTimeSchema
+}).strict();
+
+export const escrowLedgerEntrySchema = z.object({
+  id: idSchema,
+  campaignId: idSchema,
+  type: escrowLedgerEntryTypeSchema,
+  amountWei: weiAmountSchema,
+  status: ledgerStatusSchema,
+  txHash: z.string().min(1).optional(),
+  blockNumber: z.number().int().positive().optional(),
+  eventName: z.string().min(1).optional(),
+  attentionEventId: idSchema.optional(),
+  settlementEventId: idSchema.optional(),
+  proofHash: z.string().min(16).optional(),
+  createdAt: isoDateTimeSchema,
+  updatedAt: isoDateTimeSchema
+}).strict();
+
+export const fundingBalanceSummarySchema = z.object({
+  depositedWei: weiAmountSchema,
+  spentWei: weiAmountSchema,
+  availableWei: weiAmountSchema,
+  pendingDebitWei: weiAmountSchema,
+  entryCount: z.number().int().nonnegative(),
+  lastIndexedBlock: z.number().int().positive().optional()
+}).strict();
+
 export type Campaign = z.infer<typeof campaignSchema>;
 export type NaturalLanguageTargetPolicy = z.infer<typeof naturalLanguageTargetPolicySchema>;
 export type CompiledTargetPolicy = z.infer<typeof compiledTargetPolicySchema>;
@@ -258,6 +320,13 @@ export type AttentionEvent = z.infer<typeof attentionEventSchema>;
 export type SettlementProof = z.infer<typeof settlementProofSchema>;
 export type SettlementEvent = z.infer<typeof settlementEventSchema>;
 export type ContractTransaction = z.infer<typeof contractTransactionSchema>;
+export type AdvertiserWalletVerificationStatus = z.infer<typeof advertiserWalletVerificationStatusSchema>;
+export type EscrowLedgerEntryType = z.infer<typeof escrowLedgerEntryTypeSchema>;
+export type LedgerStatus = z.infer<typeof ledgerStatusSchema>;
+export type AdvertiserWalletProfile = z.infer<typeof advertiserWalletProfileSchema>;
+export type CampaignFundingAccount = z.infer<typeof campaignFundingAccountSchema>;
+export type EscrowLedgerEntry = z.infer<typeof escrowLedgerEntrySchema>;
+export type FundingBalanceSummary = z.infer<typeof fundingBalanceSummarySchema>;
 
 export function hashStableJson(value: unknown): string {
   return createHash("sha256").update(JSON.stringify(sortJson(value))).digest("hex");

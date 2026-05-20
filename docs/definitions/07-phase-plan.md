@@ -1,6 +1,6 @@
 # 07. Phase Plan
 
-- 상태: v0.4 locked
+- 상태: v0.5 locked
 - 작성일: 2026-05-20
 
 ## Phase 0. Definition Lock
@@ -68,6 +68,7 @@
 - target policy matcher
 - ad opportunity selector
 - interactive ad agent
+- prepared creative variant generator
 - HTML/CSS/React scripted graphic renderer
 - micro-interaction template
 - policy guard
@@ -78,6 +79,7 @@
 - 부적격 campaign 필터링
 - sponsored label 강제
 - approved claim set 밖 문구 차단
+- 선택된 opportunity가 runtime 생성 대신 prepared creative variant를 불러옴
 - ad interaction 결과가 Answer Agent 입력으로 전달되지 않음
 - 최소 3개 demo ad theme fixture 동작
 
@@ -144,16 +146,18 @@
 - default 3 preset registry
 - custom demo preset builder
 - preset persistence via browser localStorage
-- OpenRouter key session input
+- OpenRouter key loading
 - OpenRouter structured-output adapter
-- live policy compile / answer / sponsored copy refresh API
+- live policy compile / sponsored copy refresh API
+- live service answer streaming API
 
 검증:
 
 - 3개 seed 외 custom preset 추가 가능
 - custom preset이 User Chat과 Advertiser Console 양쪽에 표시
-- key 없음: deterministic fixture fallback
-- key 있음: OpenRouter structured output 호출 후 schema/guard 통과 결과만 반영
+- `.env` key 없음: deterministic fixture fallback
+- `.env` key 있음: sponsored copy는 OpenRouter structured output 호출 후 schema/guard 통과 결과만 반영하고, service answer는 광고 이후 streaming answer bubble로 표시
+- browser session/header key 주입은 무시
 - `npm test`, `npm run typecheck` 통과
 
 ## Phase 5. Hardening
@@ -197,6 +201,32 @@
 - 실제 testnet `SettlementClaimed` tx/event 확인
 - dashboard가 live receipt 기반 settlement status 표시
 - raw transcript/profile/direct user id가 calldata/event/index에 없음
+
+### Phase 5.2. Minimal User Chat Simplification
+
+목표: User Chat을 ChatGPT식 미니멀 대화 UI로 단순화하고, 답변 전 광고가 먼저 뜨는 제품 컨셉을 고정한다.
+
+기준 문서:
+
+- `docs/definitions/10-minimal-chat-ui-final-plan.md`
+
+산출물:
+
+- minimal conversation thread layout
+- pre-answer sponsored message component
+- answer reveal state after CTA/dismiss/not relevant/timeout
+- compact `Why this ad` / `Ad proof` drawer
+- User Chat first viewport에서 advertiser/review/settlement full panel 제거
+- desktop/mobile responsive QA
+
+검증:
+
+- `/user-chat` 첫 화면이 단일 채팅 UI로 보임
+- user bubble 다음에 sponsored message가 먼저 표시되고 service answer는 그 뒤에 표시됨
+- `Sponsored`, advertiser, why-this-ad, CTA, dismiss/not relevant가 첫 광고 block에서 확인됨
+- proof/settlement detail은 drawer/chip으로 열 수 있음
+- `/advertiser-console` 기능은 회귀 없이 유지됨
+- `npm test`, `npm run typecheck`, Browser desktop/mobile QA 통과
 
 ## Required Completion Phase
 

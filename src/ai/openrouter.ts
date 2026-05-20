@@ -29,6 +29,15 @@ export type OpenRouterChatJsonInput = {
   maxTokens?: number;
 };
 
+export type OpenRouterChatStreamInput = {
+  config: OpenRouterConfig;
+  model: string;
+  messages: OpenRouterMessage[];
+  responseFormat?: JsonSchemaResponseFormat;
+  temperature?: number;
+  maxTokens?: number;
+};
+
 export type OpenRouterEmbeddingInput = {
   config: OpenRouterConfig;
   model: string;
@@ -37,6 +46,20 @@ export type OpenRouterEmbeddingInput = {
 
 type ChatCompletionResponse = {
   choices?: Array<{
+    message?: {
+      content?: string;
+    };
+  }>;
+};
+
+type ChatCompletionStreamResponse = {
+  error?: {
+    message?: string;
+  };
+  choices?: Array<{
+    delta?: {
+      content?: string;
+    };
     message?: {
       content?: string;
     };
@@ -73,13 +96,7 @@ export function resolveOpenRouterConfig(input: {
   };
 }
 
-export function getOpenRouterApiKeyFromRequest(request: Request): string | undefined {
-  const headerKey = request.headers.get("x-openrouter-api-key")?.trim();
-
-  if (headerKey) {
-    return headerKey;
-  }
-
+export function getOpenRouterApiKeyFromEnv(): string | undefined {
   return process.env.OPENROUTER_API_KEY;
 }
 
@@ -105,7 +122,7 @@ export async function callOpenRouterChatJson<T>(
     model: input.model,
     messages: input.messages,
     temperature: input.temperature ?? 0.2,
-    max_tokens: input.maxTokens ?? 800,
+    max_tokens: input.maxTokens ?? 4000,
     response_format: input.responseFormat
   });
   const payload = await response.json() as ChatCompletionResponse;
@@ -116,6 +133,77 @@ export async function callOpenRouterChatJson<T>(
   }
 
   return JSON.parse(content) as T;
+}
+
+export async function* streamOpenRouterChatContent(
+  input: OpenRouterChatStreamInput
+): AsyncGenerator<string> {
+  const response = await openRouterFetch(input.config, "/chat/completions", {
+    model: input.model,
+    messages: input.messages,
+    temperature: input.temperature ?? 0.2,
+    max_tokens: input.maxTokens ?? 4000,
+    ...(input.responseFormat ? { response_format: input.responseFormat } : {}),
+    stream: true
+  });
+
+  if (!response.body) {
+    throw new Error("OpenRouter returned an empty streaming response body.");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+
+    if (done) {
+      break;
+    }
+
+    buffer += decoder.decode(value, { stream: true });
+    const parsed = extractSsePayloads(buffer);
+    buffer = parsed.remainder;
+
+    for (const payload of parsed.payloads) {
+      if (payload === "[DONE]") {
+        return;
+      }
+
+      const chunk = JSON.parse(payload) as ChatCompletionStreamResponse;
+
+      if (chunk.error) {
+        throw new Error(chunk.error.message ?? "OpenRouter streaming response returned an error.");
+      }
+
+      const content = chunk.choices
+        ?.map((choice) => choice.delta?.content ?? choice.message?.content ?? "")
+        .join("") ?? "";
+
+      if (content) {
+        yield content;
+      }
+    }
+  }
+
+  const tail = decoder.decode();
+  const parsed = extractSsePayloads(buffer + tail);
+
+  for (const payload of parsed.payloads) {
+    if (payload === "[DONE]") {
+      return;
+    }
+
+    const chunk = JSON.parse(payload) as ChatCompletionStreamResponse;
+    const content = chunk.choices
+      ?.map((choice) => choice.delta?.content ?? choice.message?.content ?? "")
+      .join("") ?? "";
+
+    if (content) {
+      yield content;
+    }
+  }
 }
 
 export async function callOpenRouterEmbedding(
@@ -162,6 +250,25 @@ async function openRouterFetch(
 
 function normalizeBaseUrl(value: string): string {
   return value.replace(/\/+$/, "");
+}
+
+function extractSsePayloads(buffer: string): {
+  payloads: string[];
+  remainder: string;
+} {
+  const parts = buffer.split(/\r?\n\r?\n/);
+  const remainder = parts.pop() ?? "";
+  const payloads = parts
+    .map((part) =>
+      part
+        .split(/\r?\n/)
+        .filter((line) => line.startsWith("data:"))
+        .map((line) => line.slice(5).trim())
+        .join("\n")
+    )
+    .filter(Boolean);
+
+  return { payloads, remainder };
 }
 
 function isNumberArray(value: number[] | undefined): value is number[] {
