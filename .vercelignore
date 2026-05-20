@@ -5,7 +5,8 @@ out/
 dist/
 coverage/
 artifacts/
-*.tsbuildinfo
+cache/
+tmp/
 
 .env
 .env.local
@@ -13,9 +14,7 @@ artifacts/
 local.db
 *.sqlite
 *.sqlite3
-
-cache/
-tmp/
+*.tsbuildinfo
 
 .claude/
 .docx_html_test/
@@ -27,4 +26,3 @@ outputs/
 *.docx
 *.pdf
 ~$*.docx
-.vercel
