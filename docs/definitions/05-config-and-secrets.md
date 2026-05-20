@@ -18,6 +18,7 @@
 APP_ENV=local
 APP_LANGUAGE=en
 DATABASE_URL=file:./local.db
+NEXT_ALLOWED_DEV_ORIGINS=optional_comma_separated_dev_hosts
 
 AI_PROVIDER=openrouter
 OPENROUTER_API_KEY=replace_me
@@ -50,14 +51,22 @@ AUDIT_LOG_SECRET=replace_me
 
 - Provider: OpenRouter
 - 목적: 답변, 자연어 target policy compiler, 광고 매칭, 인터랙티브 광고 생성, context retention adjudication
-- fallback: deterministic demo fixtures
+- fallback: deterministic demo fixtures only when `OPENROUTER_API_KEY` is absent; when the key is configured, provider failures surface as live errors instead of fixture replacement
 - 실제 모델 사용 시 필요한 권한: text generation, structured output, embeddings
-- demo session fallback: 화면에 입력한 OpenRouter key는 browser session storage에만 저장하고 API 요청의 `x-openrouter-api-key` header로 전달한다.
+- key source: `.env`의 `OPENROUTER_API_KEY`만 사용한다.
+- 금지: 화면 입력, browser local/session storage, client-provided `x-openrouter-api-key` header로 OpenRouter key를 주입하지 않는다.
 
 ### Service Language
 
 - `APP_LANGUAGE=en`
 - user-facing UI, ad copy, disclosure, demo conversation은 영어로 제공한다.
+
+### Local Dev Network Access
+
+- `NEXT_ALLOWED_DEV_ORIGINS`: optional comma-separated dev-only host allowlist for non-localhost demos, such as a custom LAN DNS name or tunnel domain.
+- `npm run dev` binds to `0.0.0.0` so a phone or second machine can open the demo over LAN.
+- `next.config.ts` also auto-detects the current non-internal IPv4 LAN address and adds it to `allowedDevOrigins`.
+- 금지: `*` 전체 wildcard로 dev origin을 열어두는 방식. Next dev resource allowlist는 exact host 또는 subdomain wildcard를 사용한다.
 
 ### Database
 
@@ -92,6 +101,10 @@ AUDIT_LOG_SECRET=replace_me
 - `.env.example`에는 placeholder만 둔다.
 - `SETTLEMENT_SIGNER_PRIVATE_KEY`와 `ADVERTISER_DEPOSIT_PRIVATE_KEY`는 testnet 전용 신규 지갑으로 생성한다.
 - 두 private key는 데모 직후 폐기 가능해야 한다.
+- Advertiser Console funding UI는 public wallet address만 입력받는다.
+- `ADVERTISER_DEPOSIT_PRIVATE_KEY`는 browser/client bundle로 전달하지 않고 server API route에서만 사용한다.
+- dashboard wallet address는 `ADVERTISER_DEPOSIT_WALLET`와 일치할 때만 live deposit submit이 가능하다.
+- funding history에는 tx hash, block number, event name, amount만 표시하고 private key 또는 raw env 값을 표시하지 않는다.
 
 ## 커밋 금지 파일
 

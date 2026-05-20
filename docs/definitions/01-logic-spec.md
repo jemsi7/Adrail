@@ -11,12 +11,12 @@ Agentic AI 시대의 광고 문제는 추천 자체가 아니라, 서비스 답�
 
 - 서비스 언어는 영어다.
 - 광고는 답변 전 전면 인터랙티브 광고로 노출한다.
-- 광고는 LLM이 현재 사용자 니즈를 반영해 즉석 생성하고, 사용자의 micro-interaction에 실시간 반응한다.
+- 광고는 광고 제출/후보 생성 시 interaction type별 prepared creative variant를 먼저 만들고, 호출 시에는 선택된 opportunity의 prepared variant를 불러와 렌더링한다. live LLM은 이 prepared boundary 안에서 copy를 보강할 수 있고, 사용자의 micro-interaction은 광고 state에만 실시간 반응한다.
 - 답변 Agent와 광고 Agent는 입력, 출력, 로그, 정산 경로를 분리한다.
 - 광고주는 영어 자연어로 target policy를 작성한다.
 - 자연어 target policy는 내부적으로 policy AST, embedding query, prohibited-sensitive-targeting verdict, policy hash로 컴파일된다.
 - AI Provider는 OpenRouter다.
-- OpenRouter API key가 env 또는 demo session 입력으로 제공되면 live LLM 경로를 사용하고, 없거나 실패하면 deterministic fixture fallback을 사용한다.
+- OpenRouter API key가 `.env`의 `OPENROUTER_API_KEY`로 제공되면 live LLM 경로만 사용하고, provider failure는 live error로 노출한다. API key가 없을 때만 deterministic fixture fallback을 사용한다.
 - live LLM 경로는 OpenRouter structured output을 우선 사용하며, 모든 출력은 내부 schema validation과 policy guard를 통과해야 한다.
 - Context retention은 embedding 기반 RAG와 LLM adjudicator를 적극 활용한다.
 - Settlement score는 캠페인별 동적 weight/threshold로 조정 가능하다.
@@ -41,7 +41,7 @@ Agentic AI 시대의 광고 문제는 추천 자체가 아니라, 서비스 답�
 
 - 입력: 사용자 질문, 대화 맥락, 서비스 지식
 - 출력: factual/service answer
-- 동작: 광고가 표시되는 동안 답변을 백그라운드에서 생성할 수 있으나, 광고 interaction이 답변의 사실 판단이나 결론을 변경할 수 없다.
+- 동작: 광고는 완성된 sponsored message로 먼저 렌더링하고, 답변은 광고 CTA/dismiss/not relevant 이후 User Chat answer bubble로 streaming 표시한다. 광고 interaction은 답변의 사실 판단이나 결론을 변경할 수 없다.
 - 금지: campaign bid, advertiser target policy, ad creative brief, ad interaction result를 직접 입력받지 않음
 
 ### 3. Natural Language Target Policy Compiler
@@ -69,6 +69,10 @@ Agentic AI 시대의 광고 문제는 추천 자체가 아니라, 서비스 답�
 - compiled policy hash
 - creative constraints
 - allowed interaction templates
+- prepared creative set
+  - choice: 선택지별 결과 copy와 highlight
+  - slider: range visualization band와 선택값별 결과 copy
+  - short text: 입력값을 반영할 brief template
 - landing/deep-link action
 - dynamic settlement policy
 - budget and payout rule
@@ -85,13 +89,13 @@ Agentic AI 시대의 광고 문제는 추천 자체가 아니라, 서비스 답�
 
 ### 6. Interactive Ad Agent
 
-선택된 ad opportunity를 바탕으로 답변 전 전면 광고를 즉석 생성하고, 사용자의 짧은 interaction에 실시간으로 반응한다.
+선택된 ad opportunity를 바탕으로 답변 전 전면 광고를 구성하고, 사용자의 짧은 interaction에 실시간으로 반응한다.
 
-- 입력: approved creative brief, must-include attributes, current user need summary, allowed interaction template
+- 입력: approved creative brief, must-include attributes, current user need summary, allowed interaction template, prepared creative variant
 - 출력: Interactive Sponsored Interstitial spec
 - 제한: 광고주가 승인한 claim set 밖의 사실 주장 생성 금지
 - 제한: 광고 interaction 결과를 Answer Agent의 factual answer에 주입 금지
-- live mode: OpenRouter structured output으로 headline/body/card copy를 받아오되, campaign approved claim set과 Sponsored disclosure를 코드가 다시 강제한다.
+- live mode: OpenRouter structured output으로 headline/body/card copy를 받아오되, prepared creative variant, campaign approved claim set, Sponsored disclosure를 코드가 다시 강제한다.
 
 Interactive Sponsored Interstitial 필수 요소:
 
@@ -100,6 +104,7 @@ Interactive Sponsored Interstitial 필수 요소:
 - generated headline
 - generated scripted graphic layout
 - one micro-interaction
+- prepared interaction result visualization
 - CTA
 - why-this-ad disclosure
 - dismiss/not relevant control

@@ -1,4 +1,4 @@
-# Agentic Ad Firewall Core Data Model
+# Adrail Core Data Model
 
 ## What This Asset Does
 

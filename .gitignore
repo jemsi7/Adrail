@@ -16,3 +16,14 @@ local.db
 
 cache/
 tmp/
+
+.claude/
+.docx_html_test/
+.docx_quicklook_test/
+.docx_render_test/
+.impeccable/
+Screenshots/
+outputs/
+*.docx
+*.pdf
+~$*.docx

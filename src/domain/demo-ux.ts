@@ -19,7 +19,16 @@ import {
   type DemoPresetDraft
 } from "./demo-fixtures";
 import type { DemoAdTheme } from "./demo-fixtures";
-import { selectAdOpportunity } from "./matching";
+import { selectAdOpportunity, type AdDecision } from "./matching";
+import {
+  createAdvertiserFundingDashboard,
+  createAttentionDebitLedgerEntry,
+  createDemoFundingPolicyHash,
+  createDepositLedgerEntry,
+  createFailedDebitLedgerEntry,
+  readFundingRuntimePublicConfig,
+  type AdvertiserFundingDashboard
+} from "./advertiser-funding";
 import {
   type AttentionEvent,
   type CompiledTargetPolicy,
@@ -31,7 +40,9 @@ import {
   type SponsoredInterstitialInteraction
 } from "./schemas";
 import {
+  indexCampaignDepositContractEvent,
   indexSettlementContractEvent,
+  submitEscrowDepositTransaction,
   submitSettlementTransaction,
   triggerSettlement
 } from "./settlement";
@@ -114,6 +125,7 @@ export type Phase4DemoScenario = {
     contractEventStatus: string;
     contributionRows: AttentionScoreContribution[];
   };
+  fundingDashboard: AdvertiserFundingDashboard;
   demoScript: DemoScriptStep[];
 };
 
@@ -126,7 +138,7 @@ export function buildAllPhase4DemoScenarios(
   return fixtures.map((fixture) =>
     buildPhase4DemoScenarioFromFixture({
       fixture,
-      candidates: fixtures,
+      candidates: [fixture],
       now
     })
   );
@@ -140,19 +152,61 @@ export function buildPhase4DemoScenario(input: {
   contractAddress?: string;
   privacySalt?: string;
   customPresets?: DemoPresetDraft[];
+  userQuestion?: string;
+  readyThemes?: string[];
 }): Phase4DemoScenario {
   const now = input.now ?? DEFAULT_NOW;
   const fixtures = createDemoAdThemeFixtures(now, input.customPresets ?? []);
+
+  const readyThemes = input.readyThemes && input.readyThemes.length > 0
+    ? input.readyThemes
+    : [input.theme];
+  const candidates = fixtures.filter((f) => readyThemes.includes(f.theme));
+
   const fixture = findThemeFixture(fixtures, input.theme);
 
   return buildPhase4DemoScenarioFromFixture({
     fixture,
-    candidates: fixtures,
+    candidates,
     now,
     indexedAt: input.indexedAt,
     chainId: input.chainId,
     contractAddress: input.contractAddress,
-    privacySalt: input.privacySalt
+    privacySalt: input.privacySalt,
+    userQuestion: input.userQuestion
+  });
+}
+
+export function buildPhase4DemoScenarioFromAdDecision(input: {
+  theme: DemoAdTheme;
+  decision: AdDecision;
+  now?: string;
+  indexedAt?: string;
+  chainId?: number;
+  contractAddress?: string;
+  privacySalt?: string;
+  customPresets?: DemoPresetDraft[];
+  userQuestion?: string;
+  readyThemes?: string[];
+}): Phase4DemoScenario {
+  const now = input.now ?? DEFAULT_NOW;
+  const fixtures = createDemoAdThemeFixtures(now, input.customPresets ?? []);
+  const readyThemes = input.readyThemes && input.readyThemes.length > 0
+    ? input.readyThemes
+    : [input.theme];
+  const candidates = fixtures.filter((f) => readyThemes.includes(f.theme));
+  const fixture = findThemeFixture(fixtures, input.theme);
+
+  return buildPhase4DemoScenarioFromFixture({
+    fixture,
+    candidates,
+    now,
+    indexedAt: input.indexedAt,
+    chainId: input.chainId,
+    contractAddress: input.contractAddress,
+    privacySalt: input.privacySalt,
+    userQuestion: input.userQuestion,
+    adDecision: input.decision
   });
 }
 
@@ -164,22 +218,27 @@ function buildPhase4DemoScenarioFromFixture(input: {
   chainId?: number;
   contractAddress?: string;
   privacySalt?: string;
+  userQuestion?: string;
+  adDecision?: AdDecision;
 }): Phase4DemoScenario {
   const now = input.now ?? DEFAULT_NOW;
   const indexedAt = input.indexedAt ?? DEFAULT_INDEXED_AT;
   const chainId = input.chainId ?? DEFAULT_CHAIN_ID;
   const contractAddress = input.contractAddress ?? DEFAULT_CONTRACT_ADDRESS;
   const privacySalt = input.privacySalt ?? DEFAULT_PRIVACY_SALT;
-  const fixture = input.fixture;
-  const intentContext = createIntentContextFixture(fixture.theme, now, fixture);
+  const fundingConfig = readFundingRuntimePublicConfig();
+  const fundingChainId = input.chainId ?? fundingConfig.chainId;
+  const fundingContractAddress = input.contractAddress ?? fundingConfig.escrowContractAddress;
+  let fixture = input.fixture;
+  const intentContext = createIntentContextFixture(fixture.theme, now, fixture, input.userQuestion);
   const eligibilityToken = createEligibilityTokenFixture({
     id: `eligibility_${fixture.theme}_phase4_demo`,
     snapshotId: `snapshot_${fixture.theme}_phase4_demo`,
-    intentTags: [fixture.theme, ...intentContext.intentTags],
-    preferenceTags: fixture.theme === "travel" ? ["budget", "nature"] : [],
+    intentTags: input.userQuestion ? intentContext.intentTags : [fixture.theme, ...intentContext.intentTags],
+    preferenceTags: !input.userQuestion && fixture.theme === "travel" ? ["budget", "nature"] : [],
     now
   });
-  const decision = selectAdOpportunity({
+  const decision = input.adDecision ?? selectAdOpportunity({
     intentContext,
     retrievalSafeSummary: intentContext.currentNeedSummary,
     eligibilityToken,
@@ -190,6 +249,11 @@ function buildPhase4DemoScenarioFromFixture(input: {
   if (!decision.opportunity) {
     throw new Error(`Expected eligible Phase 4 ad opportunity for ${fixture.theme}.`);
   }
+
+  const matchedFixture = input.candidates.find(
+    (c) => c.campaign.id === decision.opportunity!.campaign.id
+  ) ?? fixture;
+  fixture = matchedFixture;
 
   const interstitial = generateInteractiveSponsoredInterstitial({
     opportunity: decision.opportunity,
@@ -303,6 +367,76 @@ function buildPhase4DemoScenarioFromFixture(input: {
     deepLinkScore: attentionEvent.deepLinkScore,
     settlementPolicy: fixture.settlementPolicy!
   });
+  const fundingWalletAddress =
+    fundingConfig.advertiserDepositWallet ?? "0xf382e32067B8231e57C69Dbcd550A495892F6B83";
+  const fundingPolicyHash = createDemoFundingPolicyHash(fixture.campaign.id);
+  const depositSubmitted = submitEscrowDepositTransaction({
+    campaignId: fixture.campaign.id,
+    policyHash: fundingPolicyHash,
+    depositAmountWei: BigInt(fundingConfig.campaignDepositAmountWei),
+    chainId: fundingChainId,
+    contractAddress: fundingContractAddress,
+    depositedAt: now
+  });
+  const indexedDeposit = indexCampaignDepositContractEvent({
+    receipt: {
+      txHash: depositSubmitted.txHash,
+      chainId: fundingChainId,
+      contractAddress: fundingContractAddress,
+      status: "confirmed",
+      blockNumber: 123455,
+      logs: [
+        {
+          eventName: "CampaignDeposited",
+          args: {
+            campaignId: fixture.campaign.id,
+            advertiser: fundingWalletAddress,
+            amount: fundingConfig.campaignDepositAmountWei,
+            policyHash: `0x${fundingPolicyHash}`
+          }
+        }
+      ]
+    },
+    transaction: depositSubmitted,
+    expectedPolicyHash: fundingPolicyHash,
+    indexedAt
+  });
+  const depositLedgerEntry = createDepositLedgerEntry({
+    campaignId: fixture.campaign.id,
+    transaction: indexedDeposit.transaction,
+    parsedEvent: indexedDeposit.parsedEvent,
+    createdAt: now,
+    updatedAt: indexedAt
+  });
+  const debitLedgerEntry = BigInt(fundingConfig.campaignDepositAmountWei) >=
+    BigInt(fundingConfig.settlementPayoutAmountWei)
+    ? createAttentionDebitLedgerEntry({
+        settlementEvent: indexed.settlementEvent,
+        transaction: indexed.transaction,
+        amountWei: fundingConfig.settlementPayoutAmountWei,
+        createdAt: now,
+        updatedAt: indexedAt
+      })
+    : createFailedDebitLedgerEntry({
+        campaignId: fixture.campaign.id,
+        attentionEventId: indexed.settlementEvent.attentionEventId,
+        settlementEventId: indexed.settlementEvent.id,
+        proofHash: indexed.settlementEvent.proofHash,
+        amountWei: fundingConfig.settlementPayoutAmountWei,
+        reason: "InsufficientEscrow",
+        createdAt: indexedAt
+      });
+  const fundingDashboard = createAdvertiserFundingDashboard({
+    advertiserId: fixture.campaign.advertiserId,
+    campaignId: fixture.campaign.id,
+    chainId: fundingChainId,
+    escrowContractAddress: fundingContractAddress,
+    walletAddress: fundingWalletAddress,
+    configuredWalletAddress: fundingConfig.advertiserDepositWallet,
+    policyHash: fundingPolicyHash,
+    ledgerEntries: [depositLedgerEntry, debitLedgerEntry],
+    updatedAt: indexedAt
+  });
 
   return {
     theme: fixture.theme,
@@ -369,6 +503,7 @@ function buildPhase4DemoScenarioFromFixture(input: {
       contractEventStatus: indexed.transaction.eventName ?? "Awaiting contract event",
       contributionRows: attentionScore.contributions
     },
+    fundingDashboard,
     demoScript: buildDemoScript(fixture, fixture.advertiserName)
   };
 }
@@ -394,6 +529,18 @@ function getDemoInteractionValue(theme: DemoAdTheme): string {
 
   if (theme === "learning") {
     return "Product operations";
+  }
+
+  if (theme === "finance_ops") {
+    return "Invoice matching";
+  }
+
+  if (theme === "home_energy") {
+    return "Utility bill";
+  }
+
+  if (theme === "creator_tools") {
+    return "Media kit";
   }
 
   return "Compare";
@@ -430,6 +577,18 @@ function buildServiceAnswer(fixture: DemoAdThemeFixture): string {
 
   if (fixture.theme === "learning") {
     return "For a product operations move, build a path around analytics, process design, stakeholder communication, and operating cadence. Pick one project per skill area, publish the artifact, and review progress weekly against the target role description.";
+  }
+
+  if (fixture.theme === "finance_ops") {
+    return "Start by separating the month-end close into evidence collection, invoice matching, exception review, and approval checkpoints. Keep vendor-level details in your private system, then use summaries to decide what needs manual review.";
+  }
+
+  if (fixture.theme === "home_energy") {
+    return "A practical energy-savings plan starts with usage patterns, thermostat settings, insulation gaps, and appliance timing before any expensive upgrade. Compare low-cost fixes first, then evaluate solar or larger projects only after the bill pattern is clear.";
+  }
+
+  if (fixture.theme === "creator_tools") {
+    return "For a newsletter launch, define the audience promise, draft a six-week content calendar, and build a sponsor pitch only after the first editorial format is clear. Track repeatable publishing steps separately from monetization assumptions.";
   }
 
   return `A practical comparison starts by defining the outcome, constraints, and evaluation criteria for ${fixture.campaign.productServiceSummary}. I would compare the options against the user's stated need, keep sponsored claims separate, and avoid letting campaign data change the service answer.`;

@@ -19,6 +19,7 @@ import {
 import {
   callOpenRouterChatJson,
   createJsonSchemaResponseFormat,
+  streamOpenRouterChatContent,
   type OpenRouterConfig
 } from "./openrouter";
 
@@ -49,6 +50,10 @@ const liveInterstitialOutputSchema = z.object({
   interactionPrompt: z.string().min(1),
   ctaLabel: z.string().min(1)
 }).strict();
+
+export type LiveAnswerStreamEvent =
+  | { type: "delta"; text: string }
+  | { type: "done"; answer: string };
 
 export async function compilePolicyWithOpenRouter(input: {
   config: OpenRouterConfig;
@@ -163,47 +168,48 @@ export async function generateAnswerWithOpenRouter(input: {
   userQuestion: string;
   retrievalSafeSummary: string;
 }): Promise<string> {
-  const answerInput = buildAnswerAgentInput({
-    userQuestion: input.userQuestion,
-    retrievalSafeSummary: input.retrievalSafeSummary,
-    recentUserMessages: [input.userQuestion],
-    serviceKnowledge: [],
-    consent: {
-      adPersonalization: true,
-      categoryOptOuts: []
-    }
-  });
   const output = liveAnswerOutputSchema.parse(await callOpenRouterChatJson({
     config: input.config,
     model: input.model ?? DEFAULT_OPENROUTER_TEXT_MODEL,
-    responseFormat: createJsonSchemaResponseFormat({
-      name: "service_answer",
-      schema: {
-        type: "object",
-        additionalProperties: false,
-        required: ["answer"],
-        properties: {
-          answer: { type: "string" }
-        }
-      }
-    }),
-    messages: [
-      {
-        role: "system",
-        content: [
-          "You are the service Answer Agent.",
-          "Answer the user's question directly in English.",
-          "You must not mention advertisers, sponsored content, campaign bids, or ad interactions."
-        ].join(" ")
-      },
-      {
-        role: "user",
-        content: JSON.stringify(answerInput)
-      }
-    ]
+    responseFormat: createServiceAnswerResponseFormat(),
+    messages: createAnswerAgentMessages({
+      userQuestion: input.userQuestion,
+      retrievalSafeSummary: input.retrievalSafeSummary
+    })
   }));
 
   return output.answer;
+}
+
+export async function* streamAnswerWithOpenRouter(input: {
+  config: OpenRouterConfig;
+  model?: string;
+  userQuestion: string;
+  retrievalSafeSummary: string;
+}): AsyncGenerator<LiveAnswerStreamEvent> {
+  const extractor = createJsonStringPropertyDeltaExtractor("answer");
+  let fullContent = "";
+
+  for await (const contentDelta of streamOpenRouterChatContent({
+    config: input.config,
+    model: input.model ?? DEFAULT_OPENROUTER_TEXT_MODEL,
+    responseFormat: createServiceAnswerResponseFormat(),
+    messages: createAnswerAgentMessages({
+      userQuestion: input.userQuestion,
+      retrievalSafeSummary: input.retrievalSafeSummary
+    })
+  })) {
+    fullContent += contentDelta;
+    const answerDelta = extractor.push(contentDelta);
+
+    if (answerDelta) {
+      yield { type: "delta", text: answerDelta };
+    }
+  }
+
+  const output = liveAnswerOutputSchema.parse(JSON.parse(fullContent));
+
+  yield { type: "done", answer: output.answer };
 }
 
 export async function customizeInterstitialWithOpenRouter(input: {
@@ -301,27 +307,19 @@ export async function customizeInterstitialWithOpenRouter(input: {
   return interstitial;
 }
 
-export async function enhanceScenarioWithOpenRouter(input: {
+export async function enhanceScenarioAdWithOpenRouter(input: {
   scenario: Phase4DemoScenario;
   config: OpenRouterConfig;
   model?: string;
 }): Promise<Phase4DemoScenario> {
-  const [serviceAnswer, interstitial] = await Promise.all([
-    generateAnswerWithOpenRouter({
-      config: input.config,
-      model: input.model,
-      userQuestion: input.scenario.userChat.userQuestion,
-      retrievalSafeSummary: input.scenario.userChat.retrievalSafeSummary
-    }),
-    customizeInterstitialWithOpenRouter({
-      config: input.config,
-      model: input.model,
-      interstitial: input.scenario.adExperience.interstitial,
-      adPoolItem: input.scenario.fixture.adPoolItem,
-      compiledPolicy: input.scenario.fixture.compiledPolicy,
-      userNeedSummary: input.scenario.userChat.retrievalSafeSummary
-    })
-  ]);
+  const interstitial = await customizeInterstitialWithOpenRouter({
+    config: input.config,
+    model: input.model,
+    interstitial: input.scenario.adExperience.interstitial,
+    adPoolItem: input.scenario.fixture.adPoolItem,
+    compiledPolicy: input.scenario.fixture.compiledPolicy,
+    userNeedSummary: input.scenario.userChat.retrievalSafeSummary
+  });
   const { updatedInterstitial, interactionEvent } = applySponsoredInteraction({
     interstitial,
     interactionId: input.scenario.adExperience.interactionEvent.id,
@@ -331,10 +329,6 @@ export async function enhanceScenarioWithOpenRouter(input: {
 
   return {
     ...input.scenario,
-    userChat: {
-      ...input.scenario.userChat,
-      serviceAnswer
-    },
     adExperience: {
       ...input.scenario.adExperience,
       interstitial,
@@ -347,6 +341,172 @@ export async function enhanceScenarioWithOpenRouter(input: {
         interstitial.disclosure.dataBoundary,
         "OpenRouter generated this live demo copy under the same policy guard."
       ]
+    }
+  };
+}
+
+export async function enhanceScenarioWithOpenRouter(input: {
+  scenario: Phase4DemoScenario;
+  config: OpenRouterConfig;
+  model?: string;
+}): Promise<Phase4DemoScenario> {
+  const [serviceAnswer, adScenario] = await Promise.all([
+    generateAnswerWithOpenRouter({
+      config: input.config,
+      model: input.model,
+      userQuestion: input.scenario.userChat.userQuestion,
+      retrievalSafeSummary: input.scenario.userChat.retrievalSafeSummary
+    }),
+    enhanceScenarioAdWithOpenRouter({
+      scenario: input.scenario,
+      config: input.config,
+      model: input.model
+    })
+  ]);
+
+  return {
+    ...adScenario,
+    userChat: {
+      ...adScenario.userChat,
+      serviceAnswer
+    }
+  };
+}
+
+function createServiceAnswerResponseFormat() {
+  return createJsonSchemaResponseFormat({
+    name: "service_answer",
+    schema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["answer"],
+      properties: {
+        answer: { type: "string" }
+      }
+    }
+  });
+}
+
+function createAnswerAgentMessages(input: {
+  userQuestion: string;
+  retrievalSafeSummary: string;
+}) {
+  const answerInput = buildAnswerAgentInput({
+    userQuestion: input.userQuestion,
+    retrievalSafeSummary: input.retrievalSafeSummary,
+    recentUserMessages: [input.userQuestion],
+    serviceKnowledge: [],
+    consent: {
+      adPersonalization: true,
+      categoryOptOuts: []
+    }
+  });
+
+  return [
+    {
+      role: "system" as const,
+      content: [
+        "You are the service Answer Agent.",
+        "Answer the user's question directly in English.",
+        "You must not mention advertisers, sponsored content, campaign bids, or ad interactions."
+      ].join(" ")
+    },
+    {
+      role: "user" as const,
+      content: JSON.stringify(answerInput)
+    }
+  ];
+}
+
+function createJsonStringPropertyDeltaExtractor(propertyName: string): {
+  push: (chunk: string) => string;
+} {
+  const propertyPattern = new RegExp(`"${propertyName}"\\s*:\\s*"`);
+  const simpleEscapes: Record<string, string> = {
+    "\"": "\"",
+    "\\": "\\",
+    "/": "/",
+    b: "\b",
+    f: "\f",
+    n: "\n",
+    r: "\r",
+    t: "\t"
+  };
+  let state: "searching" | "reading" | "done" = "searching";
+  let searchBuffer = "";
+  let escaping = false;
+  let unicodeEscape: string | null = null;
+
+  function readStringContent(value: string): string {
+    let output = "";
+
+    for (const char of value) {
+      if (state !== "reading") {
+        break;
+      }
+
+      if (unicodeEscape !== null) {
+        unicodeEscape += char;
+
+        if (unicodeEscape.length === 4) {
+          output += String.fromCharCode(Number.parseInt(unicodeEscape, 16));
+          unicodeEscape = null;
+          escaping = false;
+        }
+
+        continue;
+      }
+
+      if (escaping) {
+        if (char === "u") {
+          unicodeEscape = "";
+          continue;
+        }
+
+        output += simpleEscapes[char] ?? char;
+        escaping = false;
+        continue;
+      }
+
+      if (char === "\\") {
+        escaping = true;
+        continue;
+      }
+
+      if (char === "\"") {
+        state = "done";
+        break;
+      }
+
+      output += char;
+    }
+
+    return output;
+  }
+
+  return {
+    push(chunk: string): string {
+      if (state === "done") {
+        return "";
+      }
+
+      if (state === "reading") {
+        return readStringContent(chunk);
+      }
+
+      searchBuffer += chunk;
+      const match = propertyPattern.exec(searchBuffer);
+
+      if (!match) {
+        searchBuffer = searchBuffer.slice(-64);
+        return "";
+      }
+
+      state = "reading";
+      const rest = searchBuffer.slice(match.index + match[0].length);
+      searchBuffer = "";
+
+      return readStringContent(rest);
     }
   };
 }

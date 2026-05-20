@@ -5,7 +5,7 @@
 
 ## 제품 이름
 
-가칭: Agentic Ad Firewall
+가칭: Adrail
 
 ## 제품 포지셔닝
 

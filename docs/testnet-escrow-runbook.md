@@ -100,7 +100,24 @@ contain only:
 They must not contain raw transcript, raw profile, direct user id, or raw
 campaign-scoped user vault id.
 
-## 8. Completion Evidence
+## 8. Advertiser Dashboard Funding Flow
+
+Use `/advertiser-console`, open the `Settlement` step, then verify:
+
+1. Wallet address input contains only the public advertiser wallet address.
+2. Amount input accepts an ETH decimal value.
+3. `Verify` validates address format and configured wallet match through
+   `POST /api/advertiser-funding/wallet`.
+4. `Fund` submits `POST /api/advertiser-funding/deposit` from the server route.
+5. The server route uses `.env` testnet-only `ADVERTISER_DEPOSIT_PRIVATE_KEY`;
+   this key is never sent to the browser.
+6. A confirmed `CampaignDeposited` receipt adds a deposit history row.
+7. A confirmed `SettlementClaimed` receipt adds an attention debit row and
+   decreases available escrow balance.
+
+Do not click `Fund` during visual QA unless a live testnet deposit is intended.
+
+## 9. Completion Evidence
 
 Record these values in the demo notes:
 
@@ -110,3 +127,43 @@ Record these values in the demo notes:
 - block numbers
 - emitted event names
 - dashboard settlement status
+
+## 10. Live Base Sepolia Evidence
+
+Captured on 2026-05-20 against Base Sepolia (`CHAIN_ID=84532`).
+
+```txt
+AttentionEscrow:
+0x88ca42ba054470cec6a31e8a25e8368634340b9a
+
+Campaign:
+campaign_travel_001
+
+Policy hash:
+622f2e306d00d3e8ef1b6280a29215ab220027cbd84a5bd43b93894c3cece6eb
+
+Deployment block:
+41757517
+
+Deposit:
+tx 0xfe1d0640bd9c76744ec25a20f4a78b7f647478ae953ee433e5e79aca9bb0e0fa
+block 41757614
+event CampaignDeposited
+amount 10000000000000000 wei
+
+Settlement:
+tx 0x4a72bed04e6e524c19bfc640f305fcee63f3309e7cde1e9b040e1fadaa1a8acf
+block 41757621
+event SettlementClaimed
+attention event attention_event_1779283526281
+proof hash 21d980f422c27b1d7d6c9993f7fc158b3011d099b06128ff49d2d1d5529cdf15
+payout 100000000000000 wei
+```
+
+Post-run balances:
+
+```txt
+SETTLEMENT_SIGNER / payout recipient: 0.025092126428843024 ETH
+ADVERTISER_DEPOSIT_WALLET: 0.014999306255525523 ETH
+ESCROW_CONTRACT: 0.0099 ETH
+```

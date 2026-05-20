@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Agentic Ad Firewall Demo",
+  title: "Adrail Demo",
   description: "Interactive sponsored interstitial demo with privacy-safe settlement proof."
 };
 

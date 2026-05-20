@@ -1,19 +1,24 @@
 {
-  "name": "agentic-ad-firewall",
+  "name": "adrail",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --hostname 0.0.0.0",
     "build": "next build",
+    "postbuild": "mkdir -p .next/standalone/.next && cp -R .next/static .next/standalone/.next/static && if [ -d public ]; then cp -R public .next/standalone/public; fi",
+    "start": "HOSTNAME=0.0.0.0 node .next/standalone/server.js",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "contract:compile": "hardhat compile",
     "contract:test": "hardhat test",
-    "contract:deploy:testnet": "hardhat run scripts/deploy-attention-escrow.ts --network testnet"
+    "contract:deploy:testnet": "hardhat run scripts/deploy-attention-escrow.ts --network testnet",
+    "contract:deposit:testnet": "hardhat run scripts/deposit-campaign.ts --network testnet",
+    "contract:claim:testnet": "hardhat run scripts/claim-settlement.ts --network testnet"
   },
   "dependencies": {
     "drizzle-orm": "0.45.2",
+    "impeccable": "2.1.9",
     "next": "16.2.6",
     "react": "19.2.6",
     "react-dom": "19.2.6",

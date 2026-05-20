@@ -1,6 +1,6 @@
 # 02. UI Spec
 
-- 상태: v0.4 locked
+- 상태: v0.5 locked
 - 작성일: 2026-05-20
 
 ## UI 원칙
@@ -20,16 +20,25 @@
 
 목적: 사용자가 AI 서비스 답변 전에 분리된 agentic ad를 경험하고, 이후 서비스 답변을 받는다.
 
+Phase 5 최종 UX 방향: `docs/definitions/10-minimal-chat-ui-final-plan.md`를 기준으로 ChatGPT식 미니멀 conversation thread를 사용한다. 광고는 별도 운영 패널이 아니라 user bubble 다음에 먼저 등장하는 sponsored message로 표시하고, 그 뒤 service answer bubble을 이어서 보여준다.
+
 주요 영역:
 
 - conversation panel
-- pre-answer sponsored interstitial
+- pre-answer sponsored message
 - service answer bubble
 - ad disclosure drawer
 - consent/privacy control
 - follow-up input
 - scenario preset switcher
-- OpenRouter session key input
+
+User Chat 첫 viewport에서 제외할 것:
+
+- advertiser console full panel
+- platform review console full panel
+- settlement dashboard full panel
+- multi-step status rail
+- debug/proof hash full table
 
 Interactive Sponsored Interstitial 구성:
 
@@ -38,6 +47,10 @@ Interactive Sponsored Interstitial 구성:
 - generated headline
 - generated scripted graphic area
 - real-time micro-interaction area
+- prepared interaction result area
+  - choice: 선택된 option의 prepared result와 highlight를 표시한다.
+  - slider: 선택값이 속한 range band를 meter로 시각화한다.
+  - short text: 입력값을 sponsored brief template에 반영해 표시한다.
 - 2-3개 must-include attribute
 - CTA
 - why-this-ad disclosure
@@ -46,15 +59,16 @@ Interactive Sponsored Interstitial 구성:
 확정 배치:
 
 - 사용자가 영어로 질문을 제출한다.
-- 시스템은 답변 전에 전면 Sponsored Interstitial을 표시한다.
+- 시스템은 답변 전에 `Sponsored` label이 있는 sponsored message를 먼저 표시한다.
 - 광고는 최대 1개의 짧은 micro-interaction을 포함한다.
 - 광고 완료, CTA, dismiss, timeout 중 하나가 발생하면 서비스 답변을 표시한다.
 - 답변 본문 중간에는 광고를 삽입하지 않는다.
+- testnet proof와 privacy detail은 답변 이후 compact chip 또는 drawer에서 확인한다.
 
 Micro-interaction 예시:
 
-- Budget slider를 움직이면 광고 graphic과 headline이 즉시 바뀐다.
-- Trip style을 하나 고르면 패키지 카드가 재생성된다.
+- Budget slider를 움직이면 광고 graphic과 prepared range result가 즉시 바뀐다.
+- Trip style을 하나 고르면 사전 생성된 선택지 결과와 highlight가 표시된다.
 - “Compare by time saved” 같은 버튼을 누르면 광고 CTA가 해당 기준에 맞게 바뀐다.
 - 한 줄 입력을 받되, 입력 내용은 광고 state 갱신에만 쓰고 Answer Agent에는 전달하지 않는다.
 
@@ -76,7 +90,6 @@ Micro-interaction 예시:
 - aggregate performance dashboard
 - transaction status
 - demo preset builder
-- OpenRouter session key input
 
 광고주에게 보여주지 않는 것:
 
@@ -120,17 +133,21 @@ Micro-interaction 예시:
 
 ## Demo Ad Themes
 
-MVP는 최소 3개 광고 seed preset을 제공한다. 이 3개는 광고 유형의 전체 집합이 아니라 기본 시연 preset이다.
+MVP는 최소 3개 광고 seed preset을 제공한다. 현재 bundled seed는 6개이며, 이는 광고 유형의 전체 집합이 아니라 기본 시연 preset이다.
 
 - Travel and local experiences
 - Productivity or SaaS tools
 - Online learning or professional upskilling
+- Finance operations
+- Home energy
+- Creator tools
 
 각 seed preset은 영어 광고 copy, 자연어 target policy 예시, interstitial micro-interaction, settlement policy fixture를 가진다.
 
 광고주 Console은 custom preset builder를 제공한다.
 
 - advertiser, campaign, product summary, natural-language target policy, must-include attributes, prohibited claims, interaction template, CTA를 입력한다.
+- 제출된 custom preset은 interaction template에 맞는 prepared creative variant를 먼저 생성한 뒤 User Chat에서 불러온다.
 - 추가된 custom preset은 User Chat 화면의 scenario switcher에도 나타난다.
 - custom preset도 Sponsored interstitial, compiled policy preview, settlement dashboard를 동일하게 제공한다.
 
@@ -153,6 +170,7 @@ MVP는 최소 3개 광고 seed preset을 제공한다. 이 3개는 광고 유형
 전면광고 안에서 사용자가 선택, slider, 짧은 텍스트 입력 중 하나를 수행하면 광고 Agent가 즉시 광고 상태를 갱신한다.
 
 - interaction은 광고 영역 안에서만 처리한다.
+- choice와 slider는 광고 안에서 시각화된 prepared result를 함께 갱신한다.
 - interaction 결과는 attention event로 기록될 수 있다.
 - interaction 결과는 Answer Agent의 service answer 입력으로 들어가지 않는다.
 
@@ -189,11 +207,12 @@ CTA는 외부 랜딩 페이지로 즉시 보내기보다, 우선 에이전트 �
 
 - MVP는 User Chat과 Advertiser Console을 모두 포함한다.
 - User Chat과 Advertiser Console은 별도 route/screen으로 구분한다.
-- 광고 배치는 pre-answer full-screen interstitial이다.
+- 광고 배치는 pre-answer sponsored message/interstitial이다. User Chat에서는 ChatGPT식 thread 안에서 먼저 뜨는 sponsored message로 표현한다.
 - 광고주는 target policy를 영어 자연어로 작성한다.
 - 생성형 graphic ad는 HTML/CSS/React scripted component로 구현한다.
 - 서비스 언어는 영어다.
-- OpenRouter key를 화면 session에 입력하면 live LLM refresh가 가능하고, key가 없으면 fixture mode로 유지한다.
+- OpenRouter key는 화면 session에 입력하지 않고 `.env`의 `OPENROUTER_API_KEY`에서만 읽는다. key가 없으면 fixture mode로 유지한다.
+- User Chat 미니멀화의 기준 문서는 `docs/definitions/10-minimal-chat-ui-final-plan.md`다.
 
 ## Open Decisions
 

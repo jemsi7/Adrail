@@ -4,7 +4,7 @@ import {
   compilePolicyWithOpenRouter
 } from "../../../src/ai/live-llm";
 import {
-  getOpenRouterApiKeyFromRequest,
+  getOpenRouterApiKeyFromEnv,
   resolveOpenRouterConfig
 } from "../../../src/ai/openrouter";
 import { compileNaturalLanguageTargetPolicy } from "../../../src/domain/policy";
@@ -33,12 +33,11 @@ export async function POST(request: Request) {
     createdAt: body.createdAt ?? new Date().toISOString()
   };
   const config = resolveOpenRouterConfig({
-    apiKey: getOpenRouterApiKeyFromRequest(request),
+    apiKey: getOpenRouterApiKeyFromEnv(),
     baseUrl: process.env.OPENROUTER_BASE_URL,
-    appTitle: "Agentic Ad Firewall Demo"
+    appTitle: "Adrail Demo"
   });
   let providerMode: "openrouter_live" | "deterministic_fixture" = "deterministic_fixture";
-  let fallbackReason: string | undefined;
   let compiled = compileNaturalLanguageTargetPolicy(compileInput);
 
   if (config) {
@@ -53,7 +52,11 @@ export async function POST(request: Request) {
       });
       providerMode = "openrouter_live";
     } catch (error) {
-      fallbackReason = error instanceof Error ? error.message : "OpenRouter compile failed.";
+      return NextResponse.json({
+        error: "OpenRouter compile failed.",
+        providerMode: "openrouter_live",
+        fallbackReason: error instanceof Error ? error.message : "OpenRouter compile failed."
+      }, { status: 502 });
     }
   }
 
@@ -65,7 +68,6 @@ export async function POST(request: Request) {
     compilerVersion: compiled.compilerVersion,
     requiredContextSignals: compiled.ast.requiredContextSignals,
     intentKeywords: compiled.ast.intentKeywords,
-    providerMode,
-    fallbackReason
+    providerMode
   });
 }

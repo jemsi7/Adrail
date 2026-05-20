@@ -108,7 +108,7 @@ Error prevention
 
 본 프로젝트 적용:
 
-- OpenRouter key가 없으면 live compile 버튼은 fixture fallback 상태를 분명히 보여준다.
+- `.env`의 OpenRouter key가 없으면 live compile 버튼은 fixture fallback 상태를 분명히 보여준다.
 - Review가 `rejected`인 campaign은 ad serving 또는 settlement CTA가 불가능해야 한다.
 - Policy text 수정 후 compile preview가 stale이면 review/approval을 진행하지 못하게 한다.
 
@@ -148,7 +148,7 @@ Flexibility and efficiency of use
 
 - 해커톤 심사용 one-minute path는 script tab 없이도 화면 흐름만으로 따라갈 수 있어야 한다.
 - 광고주 console은 seed campaign 선택, custom preset 생성, compile, review를 빠르게 반복할 수 있어야 한다.
-- 고급 설정인 OpenRouter key, live/fixture mode는 핵심 demo flow를 가리지 않아야 한다.
+- OpenRouter key 자체는 화면에 입력하지 않는다.
 
 ## 8. 미학적이고 간결한 디자인
 
@@ -184,7 +184,7 @@ Help users recognize, diagnose, and recover from errors
 
 본 프로젝트 적용:
 
-- `OpenRouterKeyControl is not defined` 같은 개발 오류는 사용자 화면에 노출되면 안 된다.
+- OpenRouter key 관련 개발 UI 오류는 사용자 화면에 노출되면 안 된다.
 - live LLM 실패 시 "Using deterministic fixture because live provider failed"처럼 fallback 이유를 알려준다.
 - policy compile 실패는 sensitive targeting, schema validation, provider failure를 구분해 표시한다.
 

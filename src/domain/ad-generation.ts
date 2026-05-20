@@ -7,6 +7,10 @@ import {
   hashStableJson,
   sponsoredInterstitialSchema
 } from "./schemas";
+import {
+  selectPreparedCreativeVariant,
+  type PreparedSponsoredCreativeVariant
+} from "./prepared-creatives";
 
 export type ScriptedGraphicSpec = {
   renderer: "scripted_graphic_v1";
@@ -41,12 +45,18 @@ export function generateInteractiveSponsoredInterstitial(input: {
   interstitialId: string;
   generatedAt: string;
 }): SponsoredInterstitial {
-  const interactionSpec = createMicroInteractionTemplate(input.opportunity);
-  const visualSpec = createScriptedGraphicSpec(input.opportunity, interactionSpec);
   const adPoolItem = input.opportunity.adPoolItem;
+  const preparedCreative = selectPreparedCreativeVariant({
+    creativeSet: input.opportunity.preparedCreativeSet,
+    interactionType: input.opportunity.selectedInteractionTemplate
+  });
+  const fallbackInteractionSpec = createMicroInteractionTemplate(input.opportunity);
+  const interactionSpec = preparedCreative?.interactionSpec ?? fallbackInteractionSpec;
+  const visualSpec = preparedCreative?.visualSpec ??
+    createScriptedGraphicSpec(input.opportunity, interactionSpec);
   const primarySignal = input.opportunity.matchedSignals[0] ?? "general";
-  const headline = buildHeadline(input.opportunity, primarySignal);
-  const body = [
+  const headline = preparedCreative?.headline ?? buildHeadline(input.opportunity, primarySignal);
+  const body = preparedCreative?.body ?? [
     `${adPoolItem.productServiceSummary}`,
     `Includes ${adPoolItem.mustIncludeAttributes.join("; ")}.`
   ].join(" ");
@@ -59,7 +69,7 @@ export function generateInteractiveSponsoredInterstitial(input: {
     label: "Sponsored",
     headline,
     body,
-    visualSpec,
+    visualSpec: withPreparedResultSpec(visualSpec, preparedCreative),
     interactionSpec,
     cta: adPoolItem.landingDeepLinkAction,
     disclosure: {
@@ -85,6 +95,26 @@ export function generateInteractiveSponsoredInterstitial(input: {
   }
 
   return interstitial;
+}
+
+function withPreparedResultSpec(
+  visualSpec: Record<string, unknown>,
+  preparedCreative: PreparedSponsoredCreativeVariant | null
+): Record<string, unknown> {
+  if (!preparedCreative) {
+    return visualSpec;
+  }
+
+  return {
+    ...visualSpec,
+    preparedCreative: {
+      ...(typeof visualSpec.preparedCreative === "object" && visualSpec.preparedCreative
+        ? visualSpec.preparedCreative as Record<string, unknown>
+        : {}),
+      interactionType: preparedCreative.interactionType,
+      resultSpec: preparedCreative.resultSpec
+    }
+  };
 }
 
 export function createMicroInteractionTemplate(
@@ -117,6 +147,9 @@ export function createMicroInteractionTemplate(
     travel: ["Food", "Nature", "Culture"],
     productivity: ["Automate handoffs", "Compare tools", "Save meeting time"],
     learning: ["Career switch", "Promotion track", "Skill refresh"],
+    finance_ops: ["Close checklist", "Invoice matching", "Exception review"],
+    home_energy: ["Utility bill", "Thermostat", "Solar readiness"],
+    creator_tools: ["Launch plan", "Media kit", "Content calendar"],
     general: ["Compare", "Personalize", "Continue"]
   };
 
@@ -257,6 +290,9 @@ function buildHeadline(opportunity: AdOpportunity, primarySignal: string): strin
     travel: "Shape this trip idea into a budget-aware local plan",
     productivity: "Preview the workflow savings behind this task",
     learning: "Turn this goal into a focused upskilling path",
+    finance_ops: "Turn this finance workflow into a close-ready checklist",
+    home_energy: "Map this energy question into practical savings steps",
+    creator_tools: "Shape this creator plan into a sponsor-ready launch",
     general: "Explore a sponsored option matched to this request"
   };
 

@@ -3,13 +3,17 @@ import {
   generateInteractiveSponsoredInterstitial,
   guardSponsoredInterstitial
 } from "../src/domain/ad-generation";
+import { selectPreparedCreativeVariant } from "../src/domain/prepared-creatives";
 import {
   createDemoAdThemeFixtures,
   createEligibilityTokenFixture,
   createIntentContextFixture
 } from "../src/domain/demo-fixtures";
 import {
+  cosineSimilarity,
   selectAdOpportunity,
+  selectAdOpportunityByEmbedding,
+  selectAdOpportunityByLlmChoice,
   withinFrequencyCap
 } from "../src/domain/matching";
 import {
@@ -124,6 +128,72 @@ describe("Phase 2 ad matching", () => {
       windowHours: 24
     }, now)).toBe(false);
   });
+
+  it("can rank eligible campaigns by embedding cosine similarity", () => {
+    const fixtures = createDemoAdThemeFixtures(now);
+    const intentContext = createIntentContextFixture("productivity", now);
+    const eligibilityToken = createEligibilityTokenFixture({
+      id: "eligibility_embedding_test",
+      snapshotId: "snapshot_embedding_test",
+      intentTags: ["productivity"],
+      now
+    });
+    const decision = selectAdOpportunityByEmbedding({
+      intentContext,
+      retrievalSafeSummary: intentContext.currentNeedSummary,
+      eligibilityToken,
+      candidates: fixtures,
+      embeddingMatchesByCampaignId: {
+        campaign_travel_001: {
+          score: 0.98,
+          matchedQuery: "weekend travel itinerary local experiences food nature culture budget"
+        },
+        campaign_productivity_001: {
+          score: 0.72,
+          matchedQuery: "productivity SaaS workflow automation team time saved collaboration"
+        },
+        campaign_learning_001: {
+          score: 0.12,
+          matchedQuery: "online learning professional upskilling course certification training"
+        }
+      },
+      now
+    });
+
+    expect(cosineSimilarity([1, 0], [0, 1])).toBe(0);
+    expect(cosineSimilarity([1, 1], [1, 1])).toBeCloseTo(1);
+    expect(decision.shouldRender).toBe(true);
+    expect(decision.opportunity?.campaign.id).toBe("campaign_travel_001");
+    expect(decision.opportunity?.matchedEmbeddingQueries).toEqual([
+      "weekend travel itinerary local experiences food nature culture budget"
+    ]);
+  });
+
+  it("can accept a Professional Matching LLM campaign choice after eligibility guards", () => {
+    const fixtures = createDemoAdThemeFixtures(now);
+    const intentContext = createIntentContextFixture("productivity", now);
+    const eligibilityToken = createEligibilityTokenFixture({
+      id: "eligibility_professional_matching_test",
+      snapshotId: "snapshot_professional_matching_test",
+      intentTags: ["productivity"],
+      now
+    });
+    const decision = selectAdOpportunityByLlmChoice({
+      intentContext,
+      retrievalSafeSummary: intentContext.currentNeedSummary,
+      eligibilityToken,
+      candidates: fixtures,
+      selectedCampaignId: "campaign_productivity_001",
+      rationale: "The user's repeated handoff problem maps directly to team workflow automation.",
+      fitScore: 0.93,
+      now
+    });
+
+    expect(decision.shouldRender).toBe(true);
+    expect(decision.opportunity?.campaign.id).toBe("campaign_productivity_001");
+    expect(decision.opportunity?.relevanceScore).toBe(9300);
+    expect(decision.opportunity?.matchedSignals).toContain("productivity");
+  });
 });
 
 describe("Phase 2 interactive ad generation and rendering", () => {
@@ -171,6 +241,49 @@ describe("Phase 2 interactive ad generation and rendering", () => {
     expect(html).toContain("Not relevant");
   });
 
+  it("loads the prepared interaction creative for the selected template", () => {
+    const fixtures = createDemoAdThemeFixtures(now);
+    const productivityFixture = fixtures.find((fixture) => fixture.theme === "productivity");
+    const intentContext = createIntentContextFixture("productivity", now);
+    const eligibilityToken = createEligibilityTokenFixture({
+      id: "eligibility_prepared_creative_test",
+      snapshotId: "snapshot_prepared_creative_test",
+      intentTags: ["productivity"],
+      now
+    });
+    const decision = selectAdOpportunity({
+      intentContext,
+      retrievalSafeSummary: intentContext.currentNeedSummary,
+      eligibilityToken,
+      candidates: fixtures,
+      now
+    });
+
+    expect(productivityFixture?.preparedCreativeSet?.variants.map((variant) => variant.interactionType)).toEqual([
+      "slider",
+      "choice"
+    ]);
+    expect(decision.opportunity?.selectedInteractionTemplate).toBe("slider");
+
+    const preparedVariant = selectPreparedCreativeVariant({
+      creativeSet: decision.opportunity?.preparedCreativeSet,
+      interactionType: "slider"
+    });
+    const interstitial = generateInteractiveSponsoredInterstitial({
+      opportunity: decision.opportunity!,
+      interstitialId: "interstitial_prepared_slider_test",
+      generatedAt: now
+    });
+    const preparedCreative = (interstitial.visualSpec as {
+      preparedCreative?: { interactionType?: string; resultSpec?: { type?: string } };
+    }).preparedCreative;
+
+    expect(preparedVariant?.headline).toContain("Tune the sponsored plan");
+    expect(interstitial.headline).toBe(preparedVariant?.headline);
+    expect(preparedCreative?.interactionType).toBe("slider");
+    expect(preparedCreative?.resultSpec?.type).toBe("slider");
+  });
+
   it("blocks generated copy outside the approved claim set", () => {
     const fixtures = createDemoAdThemeFixtures(now);
     const travelFixture = fixtures.find((fixture) => fixture.theme === "travel")!;
@@ -207,11 +320,18 @@ describe("Phase 2 interactive ad generation and rendering", () => {
     expect(guardResult.violations.join(" ")).toContain("prohibited claims present");
   });
 
-  it("supports all three demo ad theme fixtures", () => {
+  it("supports the system demo ad theme fixtures", () => {
     const fixtures = createDemoAdThemeFixtures(now);
     const seenThemes = fixtures.map((fixture) => fixture.theme);
 
-    expect(seenThemes).toEqual(["travel", "productivity", "learning"]);
+    expect(seenThemes).toEqual([
+      "travel",
+      "productivity",
+      "learning",
+      "finance_ops",
+      "home_energy",
+      "creator_tools"
+    ]);
 
     for (const fixture of fixtures) {
       const intentContext = createIntentContextFixture(fixture.theme, now);
