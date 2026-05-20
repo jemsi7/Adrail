@@ -20,13 +20,6 @@ OpenRouter is live-ready. Add `OPENROUTER_API_KEY` to `.env` or enter a key in
 the demo screen session field to use structured-output LLM calls; without a key,
 the deterministic fixture path stays available.
 
-## Phase 1 Scope
-
-- Core campaign, ad pool, policy, interstitial, attention, and settlement schemas.
-- Platform-private personal intelligence and privacy-safe eligibility token schemas.
-- Boundary helpers that keep campaign/ad interaction data out of answer-agent input.
-- Advertiser response filtering that excludes personal data.
-- Deterministic tests for the Phase 1 boundary guarantees.
 
 ## Commands
 
