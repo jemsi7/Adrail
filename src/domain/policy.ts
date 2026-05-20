@@ -62,6 +62,19 @@ export type CompileNaturalLanguageTargetPolicyInput = {
   createdAt: string;
 };
 
+export type CompiledPolicyAst = {
+  kind: "natural_language_policy_v2";
+  language: "en";
+  sourceText: string;
+  requiredContextSignals: string[];
+  intentKeywords: string[];
+  blockedSensitiveSignals: string[];
+  matchMode: "required_signal_or_keyword_overlap";
+  privacyBoundary: "platform_private_matching";
+};
+
+export const TARGET_POLICY_COMPILER_VERSION = "phase2-deterministic-v1";
+
 export function detectSensitiveTargeting(policyText: string): SensitiveTargetingDetection {
   const matchedRules = SENSITIVE_RULES.filter((rule) =>
     rule.patterns.some((pattern) => pattern.test(policyText))
@@ -79,14 +92,18 @@ export function compileNaturalLanguageTargetPolicy(
 ): CompiledTargetPolicy {
   const sourceText = input.sourceText.trim();
   const detection = detectSensitiveTargeting(sourceText);
-  const ast = {
-    kind: "natural_language_policy_v1",
+  const ast: CompiledPolicyAst = {
+    kind: "natural_language_policy_v2",
+    language: "en",
     sourceText,
-    requiredContextSignals: extractContextSignals(sourceText),
-    blockedSensitiveSignals: detection.prohibitedSensitiveSignals
+    requiredContextSignals: extractPolicyContextSignals(sourceText),
+    intentKeywords: extractPolicyKeywords(sourceText),
+    blockedSensitiveSignals: detection.prohibitedSensitiveSignals,
+    matchMode: "required_signal_or_keyword_overlap",
+    privacyBoundary: "platform_private_matching"
   };
   const embeddingQueries =
-    detection.verdict === "approved" ? buildEmbeddingQueries(sourceText) : [];
+    detection.verdict === "approved" ? generateEmbeddingQueries(sourceText) : [];
   const compiledSummary =
     detection.verdict === "approved"
       ? `Approved policy compiled from advertiser brief: ${sourceText}`
@@ -96,7 +113,7 @@ export function compileNaturalLanguageTargetPolicy(
     sourcePolicyId: input.sourcePolicyId,
     ast,
     embeddingQueries,
-    compilerVersion: "phase1-deterministic-v1"
+    compilerVersion: TARGET_POLICY_COMPILER_VERSION
   });
 
   return compiledTargetPolicySchema.parse({
@@ -109,12 +126,12 @@ export function compileNaturalLanguageTargetPolicy(
     compiledSummary,
     safetyVerdict: detection.verdict,
     policyHash,
-    compilerVersion: "phase1-deterministic-v1",
+    compilerVersion: TARGET_POLICY_COMPILER_VERSION,
     createdAt: input.createdAt
   });
 }
 
-function extractContextSignals(sourceText: string): string[] {
+export function extractPolicyContextSignals(sourceText: string): string[] {
   const normalized = sourceText.toLowerCase();
   const signals = [
     ["travel", /\b(travel|trip|itinerary|hotel|local experience|weekend)\b/],
@@ -127,7 +144,51 @@ function extractContextSignals(sourceText: string): string[] {
     .map(([signal]) => signal);
 }
 
-function buildEmbeddingQueries(sourceText: string): string[] {
+export function generateEmbeddingQueries(sourceText: string): string[] {
   const normalized = sourceText.replace(/\s+/g, " ").trim();
-  return [normalized];
+  const signalQueries: Record<string, string> = {
+    travel: "weekend travel itinerary local experiences food nature culture budget",
+    productivity: "productivity SaaS workflow automation team time saved collaboration",
+    learning: "online learning professional upskilling course certification training"
+  };
+
+  return uniqueStrings([
+    normalized,
+    ...extractPolicyContextSignals(normalized).map((signal) => signalQueries[signal] ?? signal),
+    ...extractPolicyKeywords(normalized).slice(0, 8).map((keyword) => `intent keyword ${keyword}`)
+  ]);
+}
+
+export function extractPolicyKeywords(sourceText: string): string[] {
+  const stopWords = new Set([
+    "and",
+    "are",
+    "for",
+    "from",
+    "have",
+    "into",
+    "looking",
+    "people",
+    "reach",
+    "that",
+    "their",
+    "them",
+    "this",
+    "those",
+    "want",
+    "with",
+    "users",
+    "currently",
+    "planning",
+    "target"
+  ]);
+  const words = sourceText
+    .toLowerCase()
+    .match(/[a-z][a-z0-9-]+/g) ?? [];
+
+  return uniqueStrings(words.filter((word) => word.length >= 4 && !stopWords.has(word)));
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return [...new Set(values.filter((value) => value.trim().length > 0))];
 }
