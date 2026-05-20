@@ -1,6 +1,6 @@
 # 00. When To Done
 
-- 상태: v0.3 locked
+- 상태: v0.4 locked
 - 작성일: 2026-05-20
 - 프로젝트: AI Agentic 광고시스템
 
@@ -17,11 +17,12 @@
 - 타겟 정책 입력: 광고주는 영어 자연어로 target policy를 작성한다.
 - 타겟 정책 실행: 플랫폼이 자연어 target brief를 내부 policy AST, embedding query, policy hash로 컴파일해 매칭과 감사를 수행한다.
 - AI Provider: OpenRouter.
+- OpenRouter live path: API key를 env 또는 demo session 입력으로 사후 주입하면 Answer Agent, target policy compiler, Interactive Ad Agent가 OpenRouter structured output 경로를 사용한다.
 - Context retention: embedding 기반 RAG와 LLM 판정을 적극 활용한다.
 - Settlement score: 캠페인별로 동적 조정 가능한 weight/threshold를 사용한다.
 - 정산 방식: MVP부터 testnet smart contract escrow를 사용한다. 로컬 DB는 인덱스와 데모 캐시로만 사용한다.
-- 데모 범위: 사용자 Chat과 광고주 Console을 모두 포함한다.
-- 데모 광고 테마: 최소 3개 이상을 포함한다.
+- 데모 범위: User Chat과 Advertiser Console을 별도 화면(route)으로 분리해 포함한다.
+- 데모 광고 테마: 기본 3개는 고정 유형이 아니라 seed preset이며, custom preset을 추가해 4개 이상으로 시연 가능해야 한다.
 - 사용자 리워드: 직접 토큰/현금 리워드는 MVP에서 제외하고, 광고 기반 무료 서비스 이용권 모델로 둔다.
 
 ## 정량 완료 조건
@@ -31,10 +32,17 @@
   - 광고주 캠페인 등록: 광고주가 Console에서 영어 자연어 target policy, ad pool, 필수 노출 특징, escrow budget을 등록한다.
   - 전면 광고 노출: 광고주가 업로드한 ad pool 중 하나가 대화 맥락에 맞게 선택되고, 답변 전에 Interactive Sponsored Interstitial로 렌더링된다.
   - 정산: dwell, real-time interaction, context retention, deep-link 중 하나 이상의 attention signal이 발생하고 testnet settlement transaction이 생성된다.
-- 데모에는 최소 3개 광고 테마가 포함된다.
+- 데모에는 최소 3개 광고 seed preset이 포함되고, 광고주 Console에서 custom preset을 추가할 수 있다.
   - Travel and local experiences
   - Productivity or SaaS tools
   - Online learning or professional upskilling
+- 광고 유형은 위 3개로 제한되지 않는다.
+  - 3개 seed는 기본 preset으로만 취급한다.
+  - custom preset도 동일한 natural-language policy compile, policy guard, interstitial generation, settlement demo 경로를 통과한다.
+- OpenRouter live-ready 조건을 만족한다.
+  - API key가 없는 상태에서는 deterministic fixture fallback으로 전체 데모가 동작한다.
+  - API key를 env 또는 화면 session 입력으로 추가하면 OpenRouter `/chat/completions` structured output 경로가 policy compile, service answer, sponsored interstitial copy에 연결된다.
+  - live LLM 출력은 schema validation과 policy guard를 통과해야 화면에 반영된다.
 - 광고와 서비스 답변의 경계가 UI와 데이터 구조 양쪽에서 분리된다.
   - 서비스 답변 모델은 advertiser targeting data와 campaign bid를 입력으로 받지 않는다.
   - 광고 생성기는 답변 텍스트를 수정할 수 없다.
@@ -78,8 +86,9 @@
 - attention signal 없이 단순 impression만으로 정산되는 상태.
 - smart contract를 언급하지만 testnet transaction, contract interface, 검증 가능한 settlement event schema가 없는 상태.
 - 전면광고가 정적 이미지일 뿐 LLM 기반 실시간 interaction을 보여주지 못하는 상태.
-- 사용자 Chat만 있거나 광고주 Console만 있는 반쪽 데모 상태.
-- 광고 테마가 1-2개뿐이라 multi-vertical ad system임을 보여주지 못하는 상태.
+- User Chat과 Advertiser Console이 같은 패널 안에 섞여 별도 화면으로 인식되지 않는 상태.
+- 광고 테마가 3개 seed에 하드코딩되어 custom demo preset을 추가할 수 없는 상태.
+- OpenRouter API key를 넣어도 fixture만 동작하거나, live LLM 출력이 schema/guard 없이 UI에 반영되는 상태.
 
 ## Open Decisions
 

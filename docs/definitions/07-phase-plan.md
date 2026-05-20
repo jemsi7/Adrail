@@ -1,6 +1,6 @@
 # 07. Phase Plan
 
-- 상태: v0.3 locked
+- 상태: v0.4 locked
 - 작성일: 2026-05-20
 
 ## Phase 0. Definition Lock
@@ -133,6 +133,29 @@
 - 광고주 캠페인 등록부터 사용자 광고 경험과 testnet 정산까지 한 흐름으로 연결
 - 3개 광고 테마 전환 가능
 
+### Phase 4.1. Demo Structure Retrofit
+
+목표: User Chat과 Advertiser Console을 별도 화면으로 분리하고, 3개 seed 광고를 확장 가능한 preset registry로 바꾼다.
+
+산출물:
+
+- `/user-chat` route
+- `/advertiser-console` route
+- default 3 preset registry
+- custom demo preset builder
+- preset persistence via browser localStorage
+- OpenRouter key session input
+- OpenRouter structured-output adapter
+- live policy compile / answer / sponsored copy refresh API
+
+검증:
+
+- 3개 seed 외 custom preset 추가 가능
+- custom preset이 User Chat과 Advertiser Console 양쪽에 표시
+- key 없음: deterministic fixture fallback
+- key 있음: OpenRouter structured output 호출 후 schema/guard 통과 결과만 반영
+- `npm test`, `npm run typecheck` 통과
+
 ## Phase 5. Hardening
 
 목표: 남은 위험을 줄인다.
@@ -145,6 +168,35 @@
 - README/demo script
 - contract edge case tests
 - testnet deployment notes
+
+### Phase 5.1. Real Testnet Escrow Completion
+
+목표: deterministic settlement scaffold를 실제 EVM-compatible testnet escrow로 전환한다.
+
+기준 문서:
+
+- `docs/definitions/09-testnet-escrow-final-plan.md`
+
+산출물:
+
+- contract id/hash encoding rule
+- Hardhat compile/test/deploy toolchain
+- hardened `AttentionEscrow` contract
+- contract edge-case tests
+- live campaign deposit gateway
+- live settlement claim gateway
+- live receipt parser/indexer
+- testnet deploy runbook
+- `.env.example` settlement placeholders
+
+검증:
+
+- Solidity compile 통과
+- contract edge-case tests 통과
+- 실제 testnet `CampaignDeposited` tx/event 확인
+- 실제 testnet `SettlementClaimed` tx/event 확인
+- dashboard가 live receipt 기반 settlement status 표시
+- raw transcript/profile/direct user id가 calldata/event/index에 없음
 
 ## Required Completion Phase
 

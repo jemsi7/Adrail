@@ -13,20 +13,50 @@ import {
 } from "./schemas";
 import { type CampaignAdCandidate, type IntentContext } from "./matching";
 
-export type DemoAdTheme = "travel" | "productivity" | "learning";
+export type DefaultDemoAdPresetId = "travel" | "productivity" | "learning";
+export type DemoAdTheme = string;
+
+export type DemoPresetDraft = {
+  id: string;
+  navigationLabel: string;
+  advertiserName: string;
+  campaignName: string;
+  objective: string;
+  productServiceSummary: string;
+  naturalLanguageTargetPolicy: string;
+  mustIncludeAttributes: string[];
+  prohibitedClaims: string[];
+  creativeConstraints?: string[];
+  allowedInteractionTemplates: Array<"choice" | "slider" | "short_text">;
+  ctaLabel: string;
+  ctaTarget: string;
+  userQuestion?: string;
+  currentNeedSummary?: string;
+  intentTags?: string[];
+  followUpQuestion?: string;
+};
 
 export type DemoAdThemeFixture = CampaignAdCandidate & {
   theme: DemoAdTheme;
+  navigationLabel: string;
   naturalLanguageTargetPolicy: NaturalLanguageTargetPolicy;
+  userQuestion: string;
+  currentNeedSummary: string;
+  intentTags: string[];
+  followUpQuestion?: string;
 };
 
 const DEFAULT_NOW = "2026-05-20T06:30:00.000Z";
 
-export function createDemoAdThemeFixtures(now = DEFAULT_NOW): DemoAdThemeFixture[] {
+export function createDemoAdThemeFixtures(
+  now = DEFAULT_NOW,
+  customPresets: DemoPresetDraft[] = []
+): DemoAdThemeFixture[] {
   return [
     createTravelFixture(now),
     createProductivityFixture(now),
-    createLearningFixture(now)
+    createLearningFixture(now),
+    ...customPresets.map((preset) => createCustomDemoFixture(preset, now))
   ];
 }
 
@@ -59,35 +89,64 @@ export function createEligibilityTokenFixture(input: {
   };
 }
 
-export function createIntentContextFixture(theme: DemoAdTheme, now = DEFAULT_NOW): IntentContext {
-  const byTheme: Record<DemoAdTheme, IntentContext> = {
-    travel: {
+export function createIntentContextFixture(
+  theme: DemoAdTheme,
+  now = DEFAULT_NOW,
+  fixture?: Pick<DemoAdThemeFixture, "userQuestion" | "currentNeedSummary" | "intentTags">
+): IntentContext {
+  if (fixture) {
+    return {
+      userQuestion: fixture.userQuestion,
+      currentNeedSummary: fixture.currentNeedSummary,
+      intentTags: fixture.intentTags,
+      occurredAt: now
+    };
+  }
+
+  if (theme === "travel") {
+    return {
       userQuestion: "Can you help me plan a relaxed weekend trip with food and nature nearby?",
       currentNeedSummary: "User is planning a budget-aware local weekend travel experience.",
       intentTags: ["travel", "weekend", "local experience"],
       occurredAt: now
-    },
-    productivity: {
+    };
+  }
+
+  if (theme === "productivity") {
+    return {
       userQuestion: "How can my team save time on repeated workflow handoffs?",
       currentNeedSummary: "User is comparing workflow automation and productivity tools.",
       intentTags: ["productivity", "workflow", "automation"],
       occurredAt: now
-    },
-    learning: {
+    };
+  }
+
+  if (theme === "learning") {
+    return {
       userQuestion: "What should I learn to move into a product operations role?",
       currentNeedSummary: "User is exploring online learning and professional upskilling.",
       intentTags: ["learning", "upskill", "professional"],
       occurredAt: now
-    }
-  };
+    };
+  }
 
-  return byTheme[theme];
+  return {
+    userQuestion: `Can you help me compare options related to ${theme}?`,
+    currentNeedSummary: `User is exploring ${theme} options and wants a useful recommendation.`,
+    intentTags: [theme],
+    occurredAt: now
+  };
 }
 
 function createTravelFixture(now: string): DemoAdThemeFixture {
   return buildFixture({
     theme: "travel",
+    navigationLabel: "Travel",
     advertiserName: "Atlas Local",
+    userQuestion: "Can you help me plan a relaxed weekend trip with food and nature nearby?",
+    currentNeedSummary: "User is planning a budget-aware local weekend travel experience.",
+    intentTags: ["travel", "weekend", "local experience"],
+    followUpQuestion: "Can the weekend itinerary stay budget-aware with food and nature options?",
     campaign: {
       id: "campaign_travel_001",
       advertiserId: "advertiser_atlas",
@@ -132,7 +191,12 @@ function createTravelFixture(now: string): DemoAdThemeFixture {
 function createProductivityFixture(now: string): DemoAdThemeFixture {
   return buildFixture({
     theme: "productivity",
+    navigationLabel: "Productivity",
     advertiserName: "FlowPilot",
+    userQuestion: "How can my team save time on repeated workflow handoffs?",
+    currentNeedSummary: "User is comparing workflow automation and productivity tools.",
+    intentTags: ["productivity", "workflow", "automation"],
+    followUpQuestion: "Can this compare workflow automation templates with a security review checklist?",
     campaign: {
       id: "campaign_productivity_001",
       advertiserId: "advertiser_flowpilot",
@@ -177,7 +241,12 @@ function createProductivityFixture(now: string): DemoAdThemeFixture {
 function createLearningFixture(now: string): DemoAdThemeFixture {
   return buildFixture({
     theme: "learning",
+    navigationLabel: "Learning",
     advertiserName: "SkillForge",
+    userQuestion: "What should I learn to move into a product operations role?",
+    currentNeedSummary: "User is exploring online learning and professional upskilling.",
+    intentTags: ["learning", "upskill", "professional"],
+    followUpQuestion: "Can this become a role-based course path with hands-on projects?",
     campaign: {
       id: "campaign_learning_001",
       advertiserId: "advertiser_skillforge",
@@ -219,9 +288,78 @@ function createLearningFixture(now: string): DemoAdThemeFixture {
   });
 }
 
+export function createCustomDemoFixture(
+  preset: DemoPresetDraft,
+  now = DEFAULT_NOW
+): DemoAdThemeFixture {
+  const presetId = toPresetId(preset.id);
+  const advertiserId = `advertiser_${presetId}`;
+  const campaignId = `campaign_${presetId}_custom`;
+  const adPoolItemId = `ad_pool_${presetId}_custom`;
+
+  return buildFixture({
+    theme: presetId,
+    navigationLabel: preset.navigationLabel.trim() || titleCase(presetId),
+    advertiserName: preset.advertiserName.trim(),
+    userQuestion: preset.userQuestion?.trim() ||
+      `Can you help me compare options for ${preset.productServiceSummary.trim()}?`,
+    currentNeedSummary: preset.currentNeedSummary?.trim() ||
+      `User is considering ${preset.productServiceSummary.trim()} and wants a privacy-safe recommendation.`,
+    intentTags: preset.intentTags && preset.intentTags.length > 0
+      ? preset.intentTags.map((tag) => tag.trim()).filter(Boolean)
+      : inferIntentTags(preset),
+    followUpQuestion: preset.followUpQuestion?.trim() ||
+      `Can this option preserve the most important attributes: ${preset.mustIncludeAttributes.slice(0, 2).join(" and ")}?`,
+    campaign: {
+      id: campaignId,
+      advertiserId,
+      name: preset.campaignName.trim(),
+      objective: preset.objective.trim(),
+      productServiceSummary: preset.productServiceSummary.trim(),
+      status: "approved",
+      reviewStatus: "approved",
+      budgetCents: 350000,
+      remainingBudgetCents: 325000,
+      createdAt: now,
+      updatedAt: now
+    },
+    policyText: preset.naturalLanguageTargetPolicy.trim(),
+    adPoolItem: {
+      id: adPoolItemId,
+      campaignId,
+      advertiserId,
+      objective: preset.objective.trim(),
+      productServiceSummary: preset.productServiceSummary.trim(),
+      mustIncludeAttributes: preset.mustIncludeAttributes.map((attribute) => attribute.trim()).filter(Boolean),
+      prohibitedClaims: preset.prohibitedClaims.map((claim) => claim.trim()).filter(Boolean),
+      creativeConstraints: preset.creativeConstraints?.map((constraint) => constraint.trim()).filter(Boolean) ?? [
+        "Always disclose Sponsored",
+        "Stay within the approved claim set"
+      ],
+      allowedInteractionTemplates: preset.allowedInteractionTemplates.length > 0
+        ? preset.allowedInteractionTemplates
+        : ["choice"],
+      landingDeepLinkAction: {
+        label: preset.ctaLabel.trim(),
+        actionType: "agent_deeplink",
+        target: preset.ctaTarget.trim()
+      },
+      reviewStatus: "approved",
+      createdAt: now,
+      updatedAt: now
+    },
+    settlementPolicy: createSettlementPolicy(`settlement_${presetId}_custom`, campaignId, now)
+  });
+}
+
 function buildFixture(input: {
   theme: DemoAdTheme;
+  navigationLabel: string;
   advertiserName: string;
+  userQuestion: string;
+  currentNeedSummary: string;
+  intentTags: string[];
+  followUpQuestion?: string;
   campaign: Campaign;
   policyText: string;
   adPoolItem: AdPoolItem;
@@ -247,12 +385,17 @@ function buildFixture(input: {
 
   return {
     theme: input.theme,
+    navigationLabel: input.navigationLabel,
     advertiserName: input.advertiserName,
     campaign,
     naturalLanguageTargetPolicy,
     compiledPolicy,
     adPoolItem,
-    settlementPolicy: input.settlementPolicy
+    settlementPolicy: input.settlementPolicy,
+    userQuestion: input.userQuestion,
+    currentNeedSummary: input.currentNeedSummary,
+    intentTags: input.intentTags,
+    followUpQuestion: input.followUpQuestion
   };
 }
 
@@ -279,4 +422,37 @@ function createSettlementPolicy(
     status: "active",
     createdAt: now
   });
+}
+
+function toPresetId(value: string): string {
+  const normalized = value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 40);
+
+  return normalized || `custom_${hashStableJson(value).slice(0, 8)}`;
+}
+
+function titleCase(value: string): string {
+  return value
+    .split(/[_\s-]+/)
+    .filter(Boolean)
+    .map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
+    .join(" ");
+}
+
+function inferIntentTags(preset: DemoPresetDraft): string[] {
+  const text = [
+    preset.id,
+    preset.navigationLabel,
+    preset.objective,
+    preset.productServiceSummary,
+    preset.naturalLanguageTargetPolicy,
+    ...preset.mustIncludeAttributes
+  ].join(" ");
+  const words = text.toLowerCase().match(/[a-z][a-z0-9-]+/g) ?? [];
+  const stopWords = new Set(["and", "for", "the", "with", "this", "that", "people", "reach"]);
+
+  return [...new Set(words.filter((word) => word.length >= 4 && !stopWords.has(word)))].slice(0, 8);
 }

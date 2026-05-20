@@ -1,6 +1,6 @@
 # 02. UI Spec
 
-- 상태: v0.3 locked
+- 상태: v0.4 locked
 - 작성일: 2026-05-20
 
 ## UI 원칙
@@ -16,7 +16,7 @@
 
 ## MVP 화면
 
-### 1. User Chat
+### 1. User Chat (`/user-chat`)
 
 목적: 사용자가 AI 서비스 답변 전에 분리된 agentic ad를 경험하고, 이후 서비스 답변을 받는다.
 
@@ -28,6 +28,8 @@
 - ad disclosure drawer
 - consent/privacy control
 - follow-up input
+- scenario preset switcher
+- OpenRouter session key input
 
 Interactive Sponsored Interstitial 구성:
 
@@ -56,7 +58,7 @@ Micro-interaction 예시:
 - “Compare by time saved” 같은 버튼을 누르면 광고 CTA가 해당 기준에 맞게 바뀐다.
 - 한 줄 입력을 받되, 입력 내용은 광고 state 갱신에만 쓰고 Answer Agent에는 전달하지 않는다.
 
-### 2. Advertiser Console
+### 2. Advertiser Console (`/advertiser-console`)
 
 목적: 광고주가 영어 자연어 target policy, ad pool, 필수 노출 특징, dynamic settlement policy, escrow budget을 등록한다.
 
@@ -73,6 +75,8 @@ Micro-interaction 예시:
 - review status
 - aggregate performance dashboard
 - transaction status
+- demo preset builder
+- OpenRouter session key input
 
 광고주에게 보여주지 않는 것:
 
@@ -116,13 +120,19 @@ Micro-interaction 예시:
 
 ## Demo Ad Themes
 
-MVP는 최소 3개 광고 테마를 제공한다.
+MVP는 최소 3개 광고 seed preset을 제공한다. 이 3개는 광고 유형의 전체 집합이 아니라 기본 시연 preset이다.
 
 - Travel and local experiences
 - Productivity or SaaS tools
 - Online learning or professional upskilling
 
-각 테마는 영어 광고 copy, 자연어 target policy 예시, interstitial micro-interaction, settlement policy fixture를 가진다.
+각 seed preset은 영어 광고 copy, 자연어 target policy 예시, interstitial micro-interaction, settlement policy fixture를 가진다.
+
+광고주 Console은 custom preset builder를 제공한다.
+
+- advertiser, campaign, product summary, natural-language target policy, must-include attributes, prohibited claims, interaction template, CTA를 입력한다.
+- 추가된 custom preset은 User Chat 화면의 scenario switcher에도 나타난다.
+- custom preset도 Sponsored interstitial, compiled policy preview, settlement dashboard를 동일하게 제공한다.
 
 ## 핵심 인터랙션
 
@@ -178,10 +188,12 @@ CTA는 외부 랜딩 페이지로 즉시 보내기보다, 우선 에이전트 �
 ## Locked Decisions
 
 - MVP는 User Chat과 Advertiser Console을 모두 포함한다.
+- User Chat과 Advertiser Console은 별도 route/screen으로 구분한다.
 - 광고 배치는 pre-answer full-screen interstitial이다.
 - 광고주는 target policy를 영어 자연어로 작성한다.
 - 생성형 graphic ad는 HTML/CSS/React scripted component로 구현한다.
 - 서비스 언어는 영어다.
+- OpenRouter key를 화면 session에 입력하면 live LLM refresh가 가능하고, key가 없으면 fixture mode로 유지한다.
 
 ## Open Decisions
 

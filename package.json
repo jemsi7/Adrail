@@ -4,21 +4,29 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "dev": "next dev",
+    "build": "next build",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "contract:compile": "hardhat compile",
+    "contract:test": "hardhat test",
+    "contract:deploy:testnet": "hardhat run scripts/deploy-attention-escrow.ts --network testnet"
   },
   "dependencies": {
     "drizzle-orm": "0.45.2",
     "next": "16.2.6",
     "react": "19.2.6",
     "react-dom": "19.2.6",
+    "viem": "2.50.4",
     "zod": "4.4.3"
   },
   "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox-viem": "5.0.5",
     "@types/node": "25.9.1",
     "@types/react": "19.2.15",
     "@types/react-dom": "19.2.3",
     "drizzle-kit": "0.31.10",
+    "hardhat": "3.4.5",
     "typescript": "6.0.3",
     "vitest": "4.1.6"
   }

@@ -1,6 +1,6 @@
 # 01. Logic Spec
 
-- 상태: v0.3 locked
+- 상태: v0.4 locked
 - 작성일: 2026-05-20
 
 ## 핵심 명제
@@ -16,10 +16,13 @@ Agentic AI 시대의 광고 문제는 추천 자체가 아니라, 서비스 답�
 - 광고주는 영어 자연어로 target policy를 작성한다.
 - 자연어 target policy는 내부적으로 policy AST, embedding query, prohibited-sensitive-targeting verdict, policy hash로 컴파일된다.
 - AI Provider는 OpenRouter다.
+- OpenRouter API key가 env 또는 demo session 입력으로 제공되면 live LLM 경로를 사용하고, 없거나 실패하면 deterministic fixture fallback을 사용한다.
+- live LLM 경로는 OpenRouter structured output을 우선 사용하며, 모든 출력은 내부 schema validation과 policy guard를 통과해야 한다.
 - Context retention은 embedding 기반 RAG와 LLM adjudicator를 적극 활용한다.
 - Settlement score는 캠페인별 동적 weight/threshold로 조정 가능하다.
 - MVP 정산은 testnet smart contract escrow로 구현한다.
-- 사용자 Chat과 광고주 Console은 모두 MVP 필수 범위다.
+- User Chat과 Advertiser Console은 모두 MVP 필수 범위이며, 같은 workbench 패널이 아니라 별도 화면(route)으로 분리한다.
+- Travel, Productivity, Learning은 고정 광고 유형이 아니라 기본 seed preset이다. Custom preset은 동일한 campaign/ad pool/policy/settlement 경로로 추가 가능해야 한다.
 - Personal Intelligence Store는 platform-private vault로 구현한다.
 
 ## 주요 컴포넌트
@@ -88,6 +91,7 @@ Agentic AI 시대의 광고 문제는 추천 자체가 아니라, 서비스 답�
 - 출력: Interactive Sponsored Interstitial spec
 - 제한: 광고주가 승인한 claim set 밖의 사실 주장 생성 금지
 - 제한: 광고 interaction 결과를 Answer Agent의 factual answer에 주입 금지
+- live mode: OpenRouter structured output으로 headline/body/card copy를 받아오되, campaign approved claim set과 Sponsored disclosure를 코드가 다시 강제한다.
 
 Interactive Sponsored Interstitial 필수 요소:
 

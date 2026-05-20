@@ -1,6 +1,6 @@
 # 04. Tech Stack
 
-- 상태: v0.3 locked
+- 상태: v0.4 locked
 - 작성일: 2026-05-20
 
 ## Locked Stack
@@ -44,8 +44,11 @@
 구현 방식:
 
 - OpenRouter adapter를 기본 provider로 둔다.
+- OpenRouter Chat Completions는 structured output JSON schema를 우선 사용한다.
+- API key는 `.env`의 `OPENROUTER_API_KEY` 또는 demo browser session의 `x-openrouter-api-key` header로 주입할 수 있다.
 - 네트워크나 key가 없어도 demo fixture로 동작 가능한 fallback을 유지한다.
 - fixture는 answer, ad generation, target policy compilation, context retention scoring을 모두 지원한다.
+- live output은 `src/ai/openrouter.ts` adapter와 `src/ai/live-llm.ts` schema/guard wrapper를 통과한다.
 
 ### Settlement
 
@@ -157,6 +160,12 @@ type SettlementProof = {
   occurredAt: string;
 };
 ```
+
+## 기본 모델
+
+- Text/structured output 기본값: `openai/gpt-4.1-mini`
+- Embedding 기본값: `openai/text-embedding-3-small`
+- 실제 모델은 env로 교체 가능하다.
 
 ## 버전 핀
 

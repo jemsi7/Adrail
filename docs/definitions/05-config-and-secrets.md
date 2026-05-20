@@ -1,6 +1,6 @@
 # 05. Config And Secrets
 
-- 상태: v0.3 locked
+- 상태: v0.4 locked
 - 작성일: 2026-05-20
 
 ## 원칙
@@ -22,12 +22,12 @@ DATABASE_URL=file:./local.db
 AI_PROVIDER=openrouter
 OPENROUTER_API_KEY=replace_me
 OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
-ANSWER_MODEL=replace_me
-TARGET_POLICY_COMPILER_MODEL=replace_me
-AD_MEDIATOR_MODEL=replace_me
-INTERACTIVE_AD_MODEL=replace_me
-RETENTION_ADJUDICATOR_MODEL=replace_me
-EMBEDDING_MODEL=replace_me
+ANSWER_MODEL=openai/gpt-4.1-mini
+TARGET_POLICY_COMPILER_MODEL=openai/gpt-4.1-mini
+AD_MEDIATOR_MODEL=openai/gpt-4.1-mini
+INTERACTIVE_AD_MODEL=openai/gpt-4.1-mini
+RETENTION_ADJUDICATOR_MODEL=openai/gpt-4.1-mini
+EMBEDDING_MODEL=openai/text-embedding-3-small
 
 SETTLEMENT_MODE=testnet
 CHAIN_ID=replace_me
@@ -35,6 +35,10 @@ ESCROW_CONTRACT_ADDRESS=replace_me
 CHAIN_RPC_URL=replace_me
 SETTLEMENT_SIGNER_PRIVATE_KEY=replace_me
 ADVERTISER_DEPOSIT_WALLET=replace_me
+ADVERTISER_DEPOSIT_PRIVATE_KEY=replace_me
+SETTLEMENT_PAYOUT_RECIPIENT=replace_me
+CAMPAIGN_DEPOSIT_AMOUNT_WEI=replace_me
+SETTLEMENT_PAYOUT_AMOUNT_WEI=replace_me
 
 PRIVACY_SALT=replace_me
 AUDIT_LOG_SECRET=replace_me
@@ -48,6 +52,7 @@ AUDIT_LOG_SECRET=replace_me
 - 목적: 답변, 자연어 target policy compiler, 광고 매칭, 인터랙티브 광고 생성, context retention adjudication
 - fallback: deterministic demo fixtures
 - 실제 모델 사용 시 필요한 권한: text generation, structured output, embeddings
+- demo session fallback: 화면에 입력한 OpenRouter key는 browser session storage에만 저장하고 API 요청의 `x-openrouter-api-key` header로 전달한다.
 
 ### Service Language
 
@@ -69,6 +74,10 @@ AUDIT_LOG_SECRET=replace_me
 - `CHAIN_RPC_URL`: testnet RPC endpoint
 - `SETTLEMENT_SIGNER_PRIVATE_KEY`: settlement transaction 제출 권한이 있는 testnet key
 - `ADVERTISER_DEPOSIT_WALLET`: 광고주 deposit wallet 주소
+- `ADVERTISER_DEPOSIT_PRIVATE_KEY`: testnet escrow deposit tx를 제출할 광고주 지갑 private key
+- `SETTLEMENT_PAYOUT_RECIPIENT`: testnet payout 수령 주소
+- `CAMPAIGN_DEPOSIT_AMOUNT_WEI`: 데모 campaign escrow deposit 금액
+- `SETTLEMENT_PAYOUT_AMOUNT_WEI`: attention proof 1건당 payout 금액
 
 ### Privacy Salt
 
@@ -81,6 +90,8 @@ AUDIT_LOG_SECRET=replace_me
 - MVP에서는 local `.env` testnet key를 사용한다.
 - 실제 자산이 있는 mainnet/private key는 사용하지 않는다.
 - `.env.example`에는 placeholder만 둔다.
+- `SETTLEMENT_SIGNER_PRIVATE_KEY`와 `ADVERTISER_DEPOSIT_PRIVATE_KEY`는 testnet 전용 신규 지갑으로 생성한다.
+- 두 private key는 데모 직후 폐기 가능해야 한다.
 
 ## 커밋 금지 파일
 

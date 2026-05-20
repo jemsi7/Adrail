@@ -22,8 +22,17 @@ HTML summary.
 - `createSettlementProof(input)`
 - `triggerSettlement(input)`
 - `submitSettlementTransaction(input)`
+- `submitSettlementTransactionAsync(input)`
+- `submitEscrowDepositTransaction(input)`
+- `submitEscrowDepositTransactionAsync(input)`
 - `parseSettlementContractEvent(receipt)`
+- `parseCampaignDepositContractEvent(receipt)`
 - `indexSettlementContractEvent(input)`
+- `indexCampaignDepositContractEvent(input)`
+- `domainIdToBytes32(id)`
+- `settlementProofToContractArgs(input)`
+- `createViemSettlementGateway(input)`
+- `createViemEscrowDepositGateway(input)`
 - `renderSettlementDashboardHtml(input)`
 - `contracts/AttentionEscrow.sol`
 
@@ -31,6 +40,8 @@ HTML summary.
 
 - `src/domain/schemas.ts`
 - `src/domain/attention.ts`
+- `src/domain/settlement-encoding.ts`
+- `src/domain/settlement-contract.ts`
 - `src/domain/settlement.ts`
 - `src/ui/settlement-dashboard-renderer.ts`
 - `contracts/AttentionEscrow.sol`
@@ -38,7 +49,9 @@ HTML summary.
 ## External Dependencies
 
 - `zod`
+- `viem`
 - `vitest` for tests
+- `hardhat` and `@nomicfoundation/hardhat-toolbox-viem` for contract compile/test/deploy
 - Solidity `^0.8.24` for the escrow contract source
 
 ## Example
@@ -96,10 +109,15 @@ if (trigger.triggered) {
   embedding/RAG + LLM adjudicator contract. Live embeddings and OpenRouter
   adjudication can replace the internals without changing the public interface.
 - `submitSettlementTransaction` defaults to a deterministic testnet gateway for
-  local tests. A live wallet/RPC gateway should implement the same
-  `SettlementTransactionGateway` interface.
-- The Solidity contract source is present, but deployment scripts and Hardhat
-  edge-case tests belong to the hardening/deployment phase.
+  local tests. `submitSettlementTransactionAsync` can use the live viem gateway.
+- `submitEscrowDepositTransaction` defaults to a deterministic deposit gateway
+  for local tests. `submitEscrowDepositTransactionAsync` can use the live viem
+  deposit gateway.
+- Hardhat compile and contract edge-case tests are present. Actual testnet
+  completion still requires user-provided RPC/key settings and a deployed
+  contract address.
+- The dashboard fixture path still uses deterministic receipts unless the app
+  is explicitly wired to live receipts for a configured testnet run.
 
 ## Porting Checklist
 
@@ -109,3 +127,5 @@ if (trigger.triggered) {
 - Compare indexed contract events against local proof hash and score.
 - Do not put raw transcript, raw profile, or direct user id into proof or
   contract event fields.
+- Convert plain app ids to `bytes32` with `keccak256(utf8(id))`; never send raw
+  campaign or attention ids on-chain.
