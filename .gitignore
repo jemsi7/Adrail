@@ -1,0 +1,17 @@
+.DS_Store
+node_modules/
+.next/
+out/
+dist/
+coverage/
+*.tsbuildinfo
+
+.env
+.env.local
+.env.production
+local.db
+*.sqlite
+*.sqlite3
+
+cache/
+tmp/
