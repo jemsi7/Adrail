@@ -41,37 +41,37 @@
 
 ## Phase 2. Ad Matching And Generation
 
-- [ ] natural-language target policy compiler 구현
-- [ ] sensitive targeting detector 구현
-- [ ] embedding query generator 구현
-- [ ] target policy matcher 구현
-- [ ] ad opportunity selector 구현
-- [ ] frequency cap 구현
-- [ ] interactive ad agent 구현
-- [ ] HTML/CSS/React scripted graphic renderer 구현
-- [ ] micro-interaction template 구현
-- [ ] policy guard 구현
-- [ ] sponsored interstitial renderer 구현
-- [ ] approved claim set validation 구현
-- [ ] no eligible campaign 상태 구현
-- [ ] 3개 이상 demo ad theme fixture 구현
+- [x] natural-language target policy compiler 구현
+- [x] sensitive targeting detector 구현
+- [x] embedding query generator 구현
+- [x] target policy matcher 구현
+- [x] ad opportunity selector 구현
+- [x] frequency cap 구현
+- [x] interactive ad agent 구현
+- [x] HTML/CSS/React scripted graphic renderer 구현
+- [x] micro-interaction template 구현
+- [x] policy guard 구현
+- [x] sponsored interstitial renderer 구현
+- [x] approved claim set validation 구현
+- [x] no eligible campaign 상태 구현
+- [x] 3개 이상 demo ad theme fixture 구현
 
 ## Phase 3. Attention And Testnet Settlement
 
-- [ ] dwell tracker 구현
-- [ ] realtime interaction tracker 구현
-- [ ] embedding/RAG context retention retriever 구현
-- [ ] LLM context retention adjudicator 구현
-- [ ] deep-link verifier 구현
-- [ ] dynamic attention score calculator 구현
-- [ ] dynamic settlement policy validator 구현
-- [ ] settlement trigger 구현
-- [ ] testnet escrow smart contract 구현
-- [ ] settlement transaction submitter 구현
-- [ ] contract event indexer 구현
-- [ ] duplicate settlement 방지 구현
-- [ ] settlement dashboard event 표시
-- [ ] transaction hash/status 표시
+- [x] dwell tracker 구현
+- [x] realtime interaction tracker 구현
+- [x] embedding/RAG context retention retriever 구현
+- [x] LLM context retention adjudicator 구현
+- [x] deep-link verifier 구현
+- [x] dynamic attention score calculator 구현
+- [x] dynamic settlement policy validator 구현
+- [x] settlement trigger 구현
+- [x] testnet escrow smart contract 구현
+- [x] settlement transaction submitter 구현
+- [x] contract event indexer 구현
+- [x] duplicate settlement 방지 구현
+- [x] settlement dashboard event 표시
+- [x] transaction hash/status 표시
 
 ## Phase 4. Demo UX
 
